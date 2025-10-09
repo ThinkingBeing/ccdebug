@@ -13,6 +13,7 @@ CCDebug 是一个针对 Claude Code的简单调试工具，能够记录、分析
 
 ### 🛠️ 对CC步骤单点调试
 ![对CC步骤单点调试](./docs/img/LLM请求调试.png)
+![发送修改后的LLM请求](./docs/img/发送LLM请求.png)
 - **追踪LLM请求**: 详细记录CC对LLM的所有请求日志
 - **重新发送LLM请求**: 支持修改LLM请求数据，重新发送请求，方便反复验证LLM的响应是否符合预期
 
