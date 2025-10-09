@@ -1,7 +1,7 @@
 <template>
   <div class="debug-page">
     <div class="header">
-      <h1>LLM请求调试7</h1>
+      <h1>LLM请求调试</h1>
       <div class="params-info">
         <div class="param-item">
           <span class="label">文件ID:</span>
