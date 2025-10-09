@@ -1,0 +1,26 @@
+{
+    Sources: [
+        {
+            Name: "langchain blog",
+            Type: "网页爬取",
+            Description: "该网站为 LangChain 官方博客首页精选，聚焦智能体与基础设施：LangGraph 设计与1.0发布、代理中间件、深度代理、标准化消息内容；LangSmith 的评测与对齐工具、Align Evals；案例含 Monte Carlo 与贝塔斯曼；并有 Open SWE 开源代理与 AWS Marketplace 上线。",
+            HowToGetInfo: `
+            1. 用网页抓取工具访问https://blog.langchain.com/；
+            2. 浏览博客文章的标题和摘要，点击'load more'按钮可以翻页；
+            3. 找到与问题有关的博客文章，打开文章链接；
+            4. 抓取文章全部内容。
+            `
+        },
+        {
+            Name: "anthropic research",
+            Type: "网页爬取",
+            Description: "该网站是Anthropic的研究页面，聚焦开发安全、可控、可靠的大型AI系统。设可解释性、对齐、社会影响团队，研究AI内部机制、安全保障及社会作用，列研究原则，展特色论文、新闻与出版物，还招募研究人员，旨在让AI对社会产生积极影响。",
+            HowToGetInfo: `
+            1. 用网页抓取工具访问https://www.anthropic.com/research；
+            2. 浏览博客文章的标题和摘要，文章列表在'Publications'标题的下方
+            3. 找到与问题有关的文章，打开文章链接；
+            4. 抓取文章全部内容。
+            `
+        }
+    ]
+}

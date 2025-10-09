@@ -1,0 +1,3 @@
+- 涉及到web页面的修改，开发完成必须使用playwright-mcp或chrome-devtools工具访问页面测试，确保页面功能正常。
+- 对于web页面开发，尽最大可能尽量使用已有组件，不到万不得已的最后时刻，不要轻易开发新组件。
+- 进行web页面测试时，应使用“npx tsx src/cli.ts --serve --port 3001 --project /Users/ligf/Code/claude-code/ccdebug/ccdemo”命令启动web站点。

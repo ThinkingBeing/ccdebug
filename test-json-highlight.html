@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JSON语法高亮测试</title>
+    <style>
+        body { 
+            font-family: "Monaco", "Menlo", "Consolas", "Courier New", monospace; 
+            margin: 20px; 
+            background: #f8f9fa; 
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 100%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            margin: 0;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        pre { 
+            background: #ffffff; 
+            padding: 20px; 
+            margin: 0;
+            overflow: auto; 
+            white-space: pre-wrap; 
+            word-break: break-all;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        /* JSON语法高亮样式 */
+        .json-key {
+            color: #0066cc;
+            font-weight: 600;
+        }
+        .json-string {
+            color: #22863a;
+        }
+        .json-number {
+            color: #005cc5;
+        }
+        .json-boolean {
+            color: #d73a49;
+            font-weight: 600;
+        }
+        .json-null {
+            color: #6f42c1;
+            font-weight: 600;
+        }
+        
+        /* 复制按钮 */
+        .copy-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 1000;
+        }
+        .copy-btn:hover {
+            background: #218838;
+        }
+        .copy-btn:active {
+            background: #1e7e34;
+        }
+        
+        .test-btn {
+            margin: 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .test-btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <button class="test-btn" onclick="testJsonHighlight()">测试JSON语法高亮</button>
+    <button class="copy-btn" onclick="copyToClipboard()">复制JSON</button>
+    <div class="container">
+        <h1 class="header">JSON语法高亮测试</h1>
+        <pre id="json-content"></pre>
+    </div>
+    
+    <script>
+        const testData = {
+            "timestamp": 1759727181.399,
+            "method": "POST",
+            "url": "https://open.bigmodel.cn/api/anthropic/v1/messages?beta=true",
+            "headers": {
+                "accept": "application/json",
+                "authorization": "Bearer 69b...desd",
+                "content-type": "application/json"
+            },
+            "body": {
+                "model": "glm-4.5-air",
+                "max_tokens": 512,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "你好"
+                    }
+                ],
+                "temperature": 0,
+                "stream": true,
+                "enabled": true,
+                "disabled": false,
+                "nullable": null
+            }
+        };
+        
+        // JSON语法高亮函数
+        function highlightJson(json) {
+            return json
+                .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'json-key';
+                        } else {
+                            cls = 'json-string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'json-boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'json-null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
+        }
+        
+        function testJsonHighlight() {
+            const jsonString = JSON.stringify(testData, null, 2);
+            const highlightedJson = highlightJson(jsonString);
+            document.getElementById('json-content').innerHTML = highlightedJson;
+        }
+        
+        function copyToClipboard() {
+            const jsonText = JSON.stringify(testData, null, 2);
+            navigator.clipboard.writeText(jsonText).then(() => {
+                const btn = document.querySelector(".copy-btn");
+                const originalText = btn.textContent;
+                btn.textContent = "已复制!";
+                btn.style.background = "#17a2b8";
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = "#28a745";
+                }, 2000);
+            }).catch(err => {
+                console.error("复制失败:", err);
+                alert("复制失败，请手动选择文本复制");
+            });
+        }
+        
+        // 页面加载时自动测试
+        window.onload = function() {
+            testJsonHighlight();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+node_modules
+.claude
+.claude-trace
+.vscode
+dist
+ccdemo/docs/**/*.md
+ccdemo/results/**/*.md
+web/server/server
+release
