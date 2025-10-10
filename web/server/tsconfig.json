@@ -4,7 +4,7 @@
     "module": "CommonJS",
     "lib": ["ES2020"],
     "outDir": "./",
-    "rootDir": "../",
+    "rootDir": "./",
     "strict": false,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -17,6 +17,6 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["./*.ts", "../src/types/*.ts"],
+  "include": ["./*.ts"],
   "exclude": ["node_modules", "**/*.test.ts"]
 }

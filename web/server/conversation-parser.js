@@ -1,12 +1,10 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConversationParser = void 0;
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
-const os_1 = __importDefault(require("os"));
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+// import { ConversationData, ConversationStep } from '../src/types/index.js';
 class ConversationParser {
     constructor() {
         this.logDir = '';
@@ -28,11 +26,11 @@ class ConversationParser {
         }
         // 日志目录格式: ~/.claude/projects/-Users-ligf-Code-claude-code-ccdebug-ccdemo
         // 需要提取出项目路径: /Users/ligf/Code/claude-code/ccdebug/ccdemo
-        const projectsDir = path_1.default.join(os_1.default.homedir(), '.claude', 'projects');
+        const projectsDir = path.join(os.homedir(), '.claude', 'projects');
         if (!this.logDir.startsWith(projectsDir)) {
             return null;
         }
-        const projectId = path_1.default.basename(this.logDir);
+        const projectId = path.basename(this.logDir);
         console.log('调试: projectId =', projectId);
         // 将项目ID转换回路径格式
         // 例如：-Users-ligf-Code-claude-code-ccdebug-ccdemo -> /Users/ligf/Code/claude-code/ccdebug/ccdemo
@@ -55,7 +53,7 @@ class ConversationParser {
         }
         console.log('调试: 重构路径 =', reconstructedPath);
         // 检查路径是否存在
-        if (fs_1.default.existsSync(reconstructedPath)) {
+        if (fs.existsSync(reconstructedPath)) {
             console.log('调试: 路径存在，返回:', reconstructedPath);
             return reconstructedPath;
         }
@@ -78,16 +76,16 @@ class ConversationParser {
             let filePath;
             const fileName = fileId.endsWith('.jsonl') ? fileId : `${fileId}.jsonl`;
             // 从日志目录加载文件
-            const logFilePath = path_1.default.join(this.logDir, fileName);
+            const logFilePath = path.join(this.logDir, fileName);
             console.log(`调试: 尝试从日志目录查找文件: ${logFilePath}`);
-            if (fs_1.default.existsSync(logFilePath)) {
+            if (fs.existsSync(logFilePath)) {
                 filePath = logFilePath;
                 console.log(`调试: 在日志目录找到文件: ${filePath}`);
             }
             else {
                 throw new Error(`文件不存在: ${logFilePath}`);
             }
-            const content = fs_1.default.readFileSync(filePath, 'utf-8');
+            const content = fs.readFileSync(filePath, 'utf-8');
             const lines = content.split('\n').filter(line => line.trim());
             const conversations = this.parseConversations(lines);
             // 返回所有对话的合并数据，而不是只返回第一个对话
@@ -537,3 +535,4 @@ class ConversationParser {
     }
 }
 exports.ConversationParser = ConversationParser;
+//# sourceMappingURL=conversation-parser.js.map

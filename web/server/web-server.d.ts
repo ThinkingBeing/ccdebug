@@ -1,7 +1,7 @@
 export interface WebServerConfig {
-    port: number;
     projectDir: string;
-    staticDir?: string;
+    port: number;
+    staticDir: string;
 }
 export declare class WebServer {
     private app;
@@ -10,9 +10,10 @@ export declare class WebServer {
     private logFileManager;
     private conversationParser;
     private config;
+    private isStarted;
+    private anthropic;
     private logDir;
     private fileWatcher;
-    private anthropic;
     constructor(config: WebServerConfig);
     private setupBasicMiddleware;
     private setupStaticFiles;

@@ -1,7 +1,6 @@
-import { WebServer } from './web-server.js';
-import type { WebServerConfig } from './web-server.js';
+declare const WebServer: any;
 export { WebServer };
-export type { WebServerConfig };
+export type { WebServerConfig } from './web-server.js';
 export { LogFileManager } from './log-file-manager.js';
 export { ConversationParser } from './conversation-parser.js';
 /**
@@ -9,7 +8,7 @@ export { ConversationParser } from './conversation-parser.js';
  * @param config 服务器配置对象
  * @returns WebServer实例
  */
-export declare function startWebServer(config: WebServerConfig): Promise<WebServer>;
+export declare function startWebServer(config: any): Promise<any>;
 /**
  * 命令行启动函数
  */

@@ -32,63 +32,61 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebServer = void 0;
-const express_1 = __importDefault(require("express"));
-const http_1 = require("http");
-const socket_io_1 = require("socket.io");
-const cors_1 = __importDefault(require("cors"));
-const path_1 = __importDefault(require("path"));
-const fs_1 = __importDefault(require("fs"));
-const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
-const log_file_manager_js_1 = require("./log-file-manager.js");
-const conversation_parser_js_1 = require("./conversation-parser.js");
+const express = require('express');
+const { createServer } = require('http');
+const { Server: SocketIOServer } = require('socket.io');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const Anthropic = require('@anthropic-ai/sdk');
+const { LogFileManager } = require('./log-file-manager.js');
+const { ConversationParser } = require('./conversation-parser.js');
 class WebServer {
     constructor(config) {
+        this.isStarted = false;
         this.config = config;
-        this.app = (0, express_1.default)();
-        this.server = (0, http_1.createServer)(this.app);
-        this.io = new socket_io_1.Server(this.server, {
-            cors: {
-                origin: "*",
-                methods: ["GET", "POST"]
-            }
-        });
+        this.app = express();
+        this.server = createServer(this.app);
+        // this.io = new SocketIOServer(this.server, {
+        //   cors: {
+        //     origin: "*",
+        //     methods: ["GET", "POST"]
+        //   }
+        // });
         // 初始化 Anthropic 客户端
-        this.anthropic = new sdk_1.default({
+        this.anthropic = new Anthropic({
             apiKey: process.env.ANTHROPIC_API_KEY,
         });
-        this.logFileManager = new log_file_manager_js_1.LogFileManager();
-        this.conversationParser = new conversation_parser_js_1.ConversationParser();
+        this.logFileManager = new LogFileManager();
+        this.conversationParser = new ConversationParser();
         this.logDir = this.logFileManager.resolveLogDirectory(config.projectDir);
         // 设置ConversationParser的日志目录
         this.conversationParser.setLogDirectory(this.logDir);
         this.setupBasicMiddleware();
         this.setupRoutes();
         this.setupStaticFiles();
-        this.setupWebSocket();
-        this.setupFileWatcher();
+        // this.setupWebSocket();
+        // this.setupFileWatcher();
     }
     setupBasicMiddleware() {
         // CORS配置
-        this.app.use((0, cors_1.default)());
+        this.app.use(cors());
         // JSON解析
-        this.app.use(express_1.default.json());
+        this.app.use(express.json());
     }
     setupStaticFiles() {
         // 静态文件服务 - 优先使用构建后的public目录
         if (this.config.staticDir) {
-            const publicDir = path_1.default.join(this.config.staticDir, 'public');
+            const publicDir = path.join(this.config.staticDir, 'public');
             // 如果存在public目录，优先使用它
-            if (fs_1.default.existsSync(publicDir)) {
+            if (fs.existsSync(publicDir)) {
                 console.log('Using built static files from:', publicDir);
-                this.app.use(express_1.default.static(publicDir));
+                this.app.use(express.static(publicDir));
             }
             // 同时也提供dist根目录的静态文件（用于assets等）
-            this.app.use(express_1.default.static(this.config.staticDir));
+            this.app.use(express.static(this.config.staticDir));
         }
         // SPA路由支持 - 必须放在最后，并且只处理非API请求
         this.app.get('*', (req, res) => {
@@ -98,14 +96,14 @@ class WebServer {
             }
             if (this.config.staticDir) {
                 // 优先使用构建后的版本 dist/public/index.html
-                const publicIndexPath = path_1.default.join(this.config.staticDir, 'public', 'index.html');
-                if (fs_1.default.existsSync(publicIndexPath)) {
+                const publicIndexPath = path.join(this.config.staticDir, 'public', 'index.html');
+                if (fs.existsSync(publicIndexPath)) {
                     console.log('Serving built HTML from:', publicIndexPath);
                     return res.sendFile(publicIndexPath);
                 }
                 // 备选方案：使用 dist/index.html
-                const indexPath = path_1.default.join(this.config.staticDir, 'index.html');
-                if (fs_1.default.existsSync(indexPath)) {
+                const indexPath = path.join(this.config.staticDir, 'index.html');
+                if (fs.existsSync(indexPath)) {
                     console.log('Serving fallback HTML from:', indexPath);
                     return res.sendFile(indexPath);
                 }
@@ -203,13 +201,13 @@ class WebServer {
         // 调试API：获取trace文件列表
         this.app.get('/api/debug/trace-files', async (req, res) => {
             try {
-                const traceDir = path_1.default.join(this.config.projectDir, '.claude-trace');
-                if (!fs_1.default.existsSync(traceDir)) {
+                const traceDir = path.join(this.config.projectDir, '.claude-trace');
+                if (!fs.existsSync(traceDir)) {
                     return res.json({ files: [], traceDir });
                 }
-                const files = fs_1.default.readdirSync(traceDir).map(file => {
-                    const filePath = path_1.default.join(traceDir, file);
-                    const stats = fs_1.default.statSync(filePath);
+                const files = fs.readdirSync(traceDir).map(file => {
+                    const filePath = path.join(traceDir, file);
+                    const stats = fs.statSync(filePath);
                     return {
                         name: file,
                         size: stats.size,
@@ -270,12 +268,12 @@ class WebServer {
                 const { fileId, messageId } = req.params;
                 console.log(`查找LLM日志: fileId=${fileId}, messageId=${messageId}`);
                 // 1. 直接在日志目录中查找对应的文件
-                const traceDir = path_1.default.join(this.config.projectDir, '.claude-trace');
+                const traceDir = path.join(this.config.projectDir, '.claude-trace');
                 let resObj;
-                const jsonlFilePath = path_1.default.join(traceDir, `${fileId}.jsonl`);
+                const jsonlFilePath = path.join(traceDir, `${fileId}.jsonl`);
                 let targetFilePath = null;
                 // 查找.jsonl文件
-                if (fs_1.default.existsSync(jsonlFilePath)) {
+                if (fs.existsSync(jsonlFilePath)) {
                     targetFilePath = jsonlFilePath;
                     console.log(`找到LLM日志文件: ${targetFilePath}`);
                 }
@@ -283,7 +281,7 @@ class WebServer {
                     throw new Error(`找不到LLM日志文件: ${fileId}`);
                 }
                 // 2. 读取并解析文件内容
-                const fileContent = await fs_1.default.promises.readFile(targetFilePath, 'utf-8');
+                const fileContent = await fs.promises.readFile(targetFilePath, 'utf-8');
                 let matchedRecord = null;
                 if (targetFilePath.endsWith('.jsonl')) {
                     // 处理.jsonl文件：逐行解析JSON
@@ -331,11 +329,11 @@ class WebServer {
                 }
                 console.log(`找到匹配的LLM记录`);
                 //从traceDir中查找llm_requests目录尝试获取LLM请求数据文件，如果找到，覆盖LLM请求数据
-                const llmRequestsDir = path_1.default.join(traceDir, 'llm_requests');
-                const llmRequestFilePath = path_1.default.join(llmRequestsDir, `${messageId}.json`);
-                if (fs_1.default.existsSync(llmRequestFilePath)) {
+                const llmRequestsDir = path.join(traceDir, 'llm_requests');
+                const llmRequestFilePath = path.join(llmRequestsDir, `${messageId}.json`);
+                if (fs.existsSync(llmRequestFilePath)) {
                     try {
-                        const llmRequestContent = await fs_1.default.promises.readFile(llmRequestFilePath, 'utf-8');
+                        const llmRequestContent = await fs.promises.readFile(llmRequestFilePath, 'utf-8');
                         matchedRecord.request = JSON.parse(llmRequestContent);
                     }
                     catch (error) {
@@ -401,13 +399,13 @@ class WebServer {
                     return res.status(400).json(response);
                 }
                 // 确保 llm_requests 目录存在
-                const llmRequestsDir = path_1.default.join(this.config.projectDir, '.claude-trace', 'llm_requests');
-                if (!fs_1.default.existsSync(llmRequestsDir)) {
-                    fs_1.default.mkdirSync(llmRequestsDir, { recursive: true });
+                const llmRequestsDir = path.join(this.config.projectDir, '.claude-trace', 'llm_requests');
+                if (!fs.existsSync(llmRequestsDir)) {
+                    fs.mkdirSync(llmRequestsDir, { recursive: true });
                 }
                 // 保存文件
-                const filePath = path_1.default.join(llmRequestsDir, `${messageId}.json`);
-                fs_1.default.writeFileSync(filePath, JSON.stringify(requestData, null, 2));
+                const filePath = path.join(llmRequestsDir, `${messageId}.json`);
+                fs.writeFileSync(filePath, JSON.stringify(requestData, null, 2));
                 const response = {
                     success: true,
                     data: {
@@ -545,12 +543,12 @@ class WebServer {
     }
     async stop() {
         return new Promise((resolve) => {
-            // 停止文件监听
-            if (this.fileWatcher) {
-                this.fileWatcher.close();
-            }
-            // 关闭WebSocket连接
-            this.io.close();
+            // // 停止文件监听
+            // if (this.fileWatcher) {
+            //   this.fileWatcher.close();
+            // }
+            // // 关闭WebSocket连接
+            // this.io.close();
             // 关闭HTTP服务器
             this.server.close(() => {
                 console.log('Web服务器已停止');
@@ -676,3 +674,4 @@ class WebServer {
     }
 }
 exports.WebServer = WebServer;
+//# sourceMappingURL=web-server.js.map

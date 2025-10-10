@@ -35,10 +35,10 @@ export class LogFileManager {
   }
 
   private generateProjectId(projectPath: string): string {
-    // 根据实际规律：将路径中的所有 '/' 替换为 '-'，同时将非 ASCII 字符（如中文）也替换为 '-'
+    // 根据实际规律：将路径中的所有 '/' 和 '_' 替换为 '-'，同时将非 ASCII 字符（如中文）也替换为 '-'
     // 例如："/Users/ligf/Code/claude-code/ccdebug/ccdemo" -> "-Users-ligf-Code-claude-code-ccdebug-ccdemo"
     // 例如："/Users/ligf/Code/项目/测试" -> "-Users-ligf-Code---"
-    return projectPath.replace(/\//g, '-').replace(/[^\x00-\x7F]/g, '-');
+    return projectPath.replace(/[\/_]/g, '-').replace(/[^\x00-\x7F]/g, '-');
   }
 
   /**

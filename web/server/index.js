@@ -1,14 +1,11 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConversationParser = exports.LogFileManager = exports.WebServer = void 0;
 exports.startWebServer = startWebServer;
 exports.startFromCLI = startFromCLI;
-const web_server_js_1 = require("./web-server.js");
-Object.defineProperty(exports, "WebServer", { enumerable: true, get: function () { return web_server_js_1.WebServer; } });
-const path_1 = __importDefault(require("path"));
+const { WebServer } = require('./web-server.js');
+exports.WebServer = WebServer;
+const path = require('path');
 var log_file_manager_js_1 = require("./log-file-manager.js");
 Object.defineProperty(exports, "LogFileManager", { enumerable: true, get: function () { return log_file_manager_js_1.LogFileManager; } });
 var conversation_parser_js_1 = require("./conversation-parser.js");
@@ -19,7 +16,7 @@ Object.defineProperty(exports, "ConversationParser", { enumerable: true, get: fu
  * @returns WebServer实例
  */
 async function startWebServer(config) {
-    const server = new web_server_js_1.WebServer(config);
+    const server = new WebServer(config);
     await server.start();
     return server;
 }
@@ -36,7 +33,7 @@ async function startFromCLI() {
         const server = await startWebServer({
             projectDir,
             port,
-            staticDir: staticDir ? path_1.default.resolve(staticDir) : undefined
+            staticDir: staticDir ? path.resolve(staticDir) : undefined
         });
         console.log(`Web服务器已启动: ${server.getUrl()}`);
         // 优雅关闭处理
@@ -60,3 +57,4 @@ async function startFromCLI() {
 if (process.argv[1] === __filename) {
     startFromCLI();
 }
+//# sourceMappingURL=index.js.map

@@ -31,12 +31,12 @@ export class WebServer {
     this.config = config;
     this.app = express();
     this.server = createServer(this.app);
-    this.io = new SocketIOServer(this.server, {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-      }
-    });
+    // this.io = new SocketIOServer(this.server, {
+    //   cors: {
+    //     origin: "*",
+    //     methods: ["GET", "POST"]
+    //   }
+    // });
     
     // 初始化 Anthropic 客户端
     this.anthropic = new Anthropic({
@@ -53,8 +53,8 @@ export class WebServer {
     this.setupBasicMiddleware();
     this.setupRoutes();
     this.setupStaticFiles();
-    this.setupWebSocket();
-    this.setupFileWatcher();
+    // this.setupWebSocket();
+    // this.setupFileWatcher();
   }
 
   private setupBasicMiddleware(): void {
@@ -587,13 +587,13 @@ export class WebServer {
 
   public async stop(): Promise<void> {
     return new Promise((resolve) => {
-      // 停止文件监听
-      if (this.fileWatcher) {
-        this.fileWatcher.close();
-      }
+      // // 停止文件监听
+      // if (this.fileWatcher) {
+      //   this.fileWatcher.close();
+      // }
       
-      // 关闭WebSocket连接
-      this.io.close();
+      // // 关闭WebSocket连接
+      // this.io.close();
       
       // 关闭HTTP服务器
       this.server.close(() => {

@@ -1,4 +1,3 @@
-import { ConversationData } from '../src/types/index.js';
 export declare class ConversationParser {
     private logDir;
     /**
@@ -16,13 +15,13 @@ export declare class ConversationParser {
      * @param fileId 文件ID
      * @returns 对话数据
      */
-    parseFile(fileId: string): Promise<ConversationData>;
+    parseFile(fileId: string): Promise<any>;
     /**
      * 解析JSONL文件内容为对话数据
      * @param lines JSONL文件的行数组
      * @returns 对话数据数组
      */
-    parseConversations(lines: string[]): ConversationData[];
+    parseConversations(lines: string[]): any[];
     private isConversationStart;
     private generateConversationId;
     private parseStep;
@@ -43,6 +42,6 @@ export declare class ConversationParser {
      * @param lines 文件内容行
      * @returns 对话数据数组
      */
-    getConversationsByFileId(fileId: string, lines: string[]): ConversationData[];
+    getConversationsByFileId(fileId: string, lines: string[]): any[];
 }
 //# sourceMappingURL=conversation-parser.d.ts.map
