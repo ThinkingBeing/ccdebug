@@ -6,6 +6,8 @@ npx tsx src/cli.ts --serve --port 3001 --project /Users/ligf/Code/claude-code/cc
 
 npx tsx src/cli.ts --serve --port 3001 --project /Users/ligf/工作/Code/平台/ccmodeling/platform_ai/0011
 
+npx tsx src/cli.ts --serve --port 3003 --project /Users/ligf/Code/claude-code/deep_view/template
+
 
 npx tsx ../src/cli.ts --project /Users/ligf/Code/claude-code/ccdebug/ccdemo --include-all-requests
 

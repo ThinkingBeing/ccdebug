@@ -42,7 +42,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   const initialize = async () => {
     loading.value = true
     error.value = null
-    
+
     try {
       // 获取项目信息
       const projectResponse = await axios.get<ApiResponse<ProjectInfo>>('/api/project/info')
@@ -50,21 +50,31 @@ export const useTimelineStore = defineStore('timeline', () => {
         currentProject.value = projectResponse.data.data
       }
 
-      // 获取可用文件列表
-      const filesResponse = await axios.get<ApiResponse<FilesApiResponse>>('/api/files')
+      // 检查URL参数中的sessionId
+      const urlParams = new URLSearchParams(window.location.search)
+      const sessionId = urlParams.get('sessionid')
+
+      // 获取可用文件列表，如果存在sessionId则过滤
+      const filesUrl = sessionId ? `/api/files?sessionId=${encodeURIComponent(sessionId)}` : '/api/files'
+      const filesResponse = await axios.get<ApiResponse<FilesApiResponse>>(filesUrl)
       if (filesResponse.data.success && filesResponse.data.data) {
         const { files, latest } = filesResponse.data.data
         availableFiles.value = files
-        
+
+        // 如果存在sessionId且只有一个匹配文件，自动加载
+        if (sessionId && files.length === 1) {
+          console.log(`找到唯一匹配sessionId ${sessionId} 的文件，自动加载: ${files[0].id}`)
+          await loadFile(files[0].id)
+        }
         // 移除自动选择最新文件的逻辑，让用户手动选择
-        // if (latest && files.length > 0) {
+        // else if (latest && files.length > 0) {
         //   await loadFile(latest)
         // }
       }
 
       // 初始化WebSocket连接
       initializeWebSocket()
-      
+
     } catch (err) {
       console.error('初始化失败:', err)
       error.value = '初始化失败，请检查服务器连接'
@@ -224,11 +234,16 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   const refreshFiles = async () => {
     try {
-      const response = await axios.get<ApiResponse<FilesApiResponse>>('/api/files')
-      
+      // 检查URL参数中的sessionId
+      const urlParams = new URLSearchParams(window.location.search)
+      const sessionId = urlParams.get('sessionid')
+
+      const filesUrl = sessionId ? `/api/files?sessionId=${encodeURIComponent(sessionId)}` : '/api/files'
+      const response = await axios.get<ApiResponse<FilesApiResponse>>(filesUrl)
+
       if (response.data.success && response.data.data) {
         availableFiles.value = response.data.data.files
-        
+
         // 移除自动选择最新文件的逻辑，让用户手动选择
         // if (!currentFileId.value && response.data.data.files.length > 0) {
         //   const latestFile = response.data.data.files[0]

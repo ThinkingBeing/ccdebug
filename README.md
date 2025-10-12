@@ -51,7 +51,7 @@ ccdebug --serve --port 3001 --project /path/to/your/cc_workdir
 |------|------|
 | `--extract-token` | 提取 OAuth token 并退出 |
 | `--generate-html` | 从 JSONL 文件生成 HTML 报告 |
-| `--index` | 为 .ccdebug/ 目录生成对话摘要和索引 |
+| `--index` | 为 .claude-trace/ 目录生成对话摘要和索引 |
 | `--serve` | 启动 Web 时间线服务器 |
 | `--port <number>` | 指定 Web 服务器端口（默认 3001） |
 | `--project <path>` | 指定项目目录路径 |

@@ -141,12 +141,23 @@ class WebServer {
         // 文件列表API
         this.app.get('/api/files', async (req, res) => {
             try {
-                const files = await this.logFileManager.getAvailableLogFiles(this.logDir);
+                const sessionId = req.query.sessionId;
+                let files = await this.logFileManager.getAvailableLogFiles(this.logDir);
+
+                // 如果提供了sessionId参数，过滤匹配的文件
+                if (sessionId) {
+                    files = files.filter(file =>
+                        file.id.includes(sessionId) || file.name.includes(sessionId)
+                    );
+                    console.log(`按sessionId ${sessionId} 过滤后找到 ${files.length} 个文件`);
+                }
+
                 const filesData = {
                     files: files,
                     latest: files.length > 0 ? files[0].id : null,
                     projectDir: this.config.projectDir,
-                    logDir: this.logDir
+                    logDir: this.logDir,
+                    sessionId: sessionId || null
                 };
                 const response = {
                     success: true,

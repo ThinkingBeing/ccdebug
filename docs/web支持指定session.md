@@ -1,0 +1,3 @@
+需求：web站点支持仅显示特定sessionid的日志。
+功能要求：
+- index页面增加url参数：sessionid，当存在此参数时，页面打开时自动加载当前项目日志目录中与sessionid对应的cc日志

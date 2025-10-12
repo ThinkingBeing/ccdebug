@@ -12,20 +12,6 @@
     </a-card>
 
     <a-card title="日志文件" :bordered="false" size="small" class="file-card">
-      <template #extra>
-        <a-button
-          type="text"
-          size="small"
-          @click="handleRefresh"
-          :loading="loading"
-        >
-          <template #icon>
-            <icon-refresh />
-          </template>
-          刷新
-        </a-button>
-      </template>
-
       <div class="file-selector-content">
         <a-select
           v-model="selectedFileId"
@@ -153,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
 import { useTimelineStore } from "../stores/timeline";
 import { IconRefresh, IconFilter } from "@arco-design/web-vue/es/icon";
 import { ConversationStep } from "../types/index";
@@ -172,7 +158,8 @@ const loading = computed(() => timelineStore.loading);
 const isConnected = computed(() => timelineStore.isConnected);
 
 // 本地状态
-const selectedFileId = ref<string | null>(null);
+const selectedFileId = ref<string | null>(null)
+const currentSessionId = ref<string | null>(null);
 
 // 节点类型过滤器状态
 const availableStepTypes = [
@@ -283,6 +270,15 @@ const formatDateTime = (timestamp: string | Date): string => {
     second: "2-digit",
   });
 };
+
+// 组件挂载时检查URL参数
+onMounted(() => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const sessionId = urlParams.get('sessionid');
+  if (sessionId) {
+    currentSessionId.value = sessionId;
+  }
+});
 </script>
 
 <style scoped>
@@ -519,5 +515,14 @@ const formatDateTime = (timestamp: string | Date): string => {
   font-size: 11px;
   color: #666;
   text-align: center;
+}
+
+.session-filter {
+  background-color: #e6f7ff;
+  color: #1890ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 12px;
 }
 </style>
