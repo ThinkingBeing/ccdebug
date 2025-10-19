@@ -1,6 +1,6 @@
 {
 	"name": "@myskyline_ai/ccdebug",
-	"version": "0.1.3",
+	"version": "0.1.5",
 	"description": "跟踪记录CC请求，可针对特定请求反复调试验证，以更直观的时间线形式展示CC日志",
 	"main": "dist/index.js",
 	"type": "commonjs",
@@ -8,8 +8,8 @@
 		"ccdebug": "dist/cli.js"
 	},
 	"scripts": {
-		"build": "tsc && cp src/interceptor-loader.js src/token-extractor.js dist/ && cd web/server && npx tsc && cd ../.. && npm run build:frontend",
-		"build:frontend": "cd frontend && npm run build",
+		"build": "tsc && cp src/interceptor-loader.js src/token-extractor.js dist/ && cd web/server && npx tsc && cd ../.. && npm run build:web",
+		"build:web": "cd web && npm run build",
 		"dev": "concurrently \"npm run dev:core\" \"npm run dev:copy\" \"npm run dev:frontend\"",
 		"dev:core": "tsc --watch --preserveWatchOutput",
 		"dev:copy": "nodemon --watch src/interceptor-loader.js --watch src/token-extractor.js --exec 'mkdir -p dist && cp src/interceptor-loader.js src/token-extractor.js dist/'",
@@ -59,16 +59,16 @@
 		"@anthropic-ai/claude-code": "^1.0.0",
 		"@anthropic-ai/sdk": "^0.52.0",
 		"@mariozechner/claude-trace": "^1.0.3",
-		"socket.io": "^4.7.4",
+		"cors": "^2.8.5",
 		"express": "^4.18.2",
-		"cors": "^2.8.5"
+		"socket.io": "^4.7.4"
 	},
 	"directories": {
 		"test": "test"
 	},
 	"types": "./dist/index.d.ts",
 	"bugs": {
-    "url": "https://github.com/myskyline_ai/ccdebug/issues"
-  },
-  "homepage": "https://github.com/myskyline_ai/ccdebug#readme"
+		"url": "https://github.com/myskyline_ai/ccdebug/issues"
+	},
+	"homepage": "https://github.com/myskyline_ai/ccdebug#readme"
 }

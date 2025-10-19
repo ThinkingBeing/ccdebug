@@ -4,7 +4,7 @@ const { Server: SocketIOServer } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const Anthropic = require('@anthropic-ai/sdk');
+// const Anthropic = require('@anthropic-ai/sdk');
 const { LogFileManager } = require('./log-file-manager.js');
 const { ConversationParser } = require('./conversation-parser.js');
 // import { ApiResponse, FilesApiResponse, ProjectInfo, ConversationData } from '../src/types/index.js';
@@ -27,26 +27,70 @@ export class WebServer {
   private logDir: string;
   private fileWatcher: any;
 
+  /**
+   * 按优先级获取ANTHROPIC_AUTH_TOKEN
+   * 1. 从项目目录的.claude/settings.local.json获取
+   * 2. 从全局Claude目录的settings.local.json获取
+   * 3. 从全局环境变量获取
+   */
+  private getAuthToken(): string | null {
+    // 1. 从项目目录的.claude/settings.local.json获取
+    const projectSettingsPath = path.join(this.config.projectDir, '.claude/settings.local.json');
+    try {
+      if (fs.existsSync(projectSettingsPath)) {
+        const projectSettings = JSON.parse(fs.readFileSync(projectSettingsPath, 'utf-8'));
+        if (projectSettings.env && projectSettings.env.ANTHROPIC_AUTH_TOKEN) {
+          console.log('从项目设置文件获取ANTHROPIC_AUTH_TOKEN');
+          return projectSettings.env.ANTHROPIC_AUTH_TOKEN;
+        }
+      }
+    } catch (error) {
+      console.error('读取项目设置文件失败:', error);
+    }
+
+    // 2. 从全局Claude目录的settings.local.json获取
+    const globalSettingsPath = path.join(process.env.HOME || '', '.claude/settings.local.json');
+    try {
+      if (fs.existsSync(globalSettingsPath)) {
+        const globalSettings = JSON.parse(fs.readFileSync(globalSettingsPath, 'utf-8'));
+        if (globalSettings.env && globalSettings.env.ANTHROPIC_AUTH_TOKEN) {
+          console.log('从全局设置文件获取ANTHROPIC_AUTH_TOKEN');
+          return globalSettings.env.ANTHROPIC_AUTH_TOKEN;
+        }
+      }
+    } catch (error) {
+      console.error('读取全局设置文件失败:', error);
+    }
+
+    // 3. 从全局环境变量获取
+    if (process.env.ANTHROPIC_AUTH_TOKEN) {
+      console.log('从环境变量获取ANTHROPIC_AUTH_TOKEN');
+      return process.env.ANTHROPIC_AUTH_TOKEN;
+    }
+
+    console.warn('未能获取ANTHROPIC_AUTH_TOKEN');
+    return null;
+  }
+
   constructor(config: WebServerConfig) {
     this.config = config;
     this.app = express();
     this.server = createServer(this.app);
-    // this.io = new SocketIOServer(this.server, {
-    //   cors: {
-    //     origin: "*",
-    //     methods: ["GET", "POST"]
-    //   }
-    // });
     
     // 初始化 Anthropic 客户端
-    this.anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    // this.anthropic = new Anthropic({
+    //   apiKey: process.env.ANTHROPIC_API_KEY,
+    // });
     
     this.logFileManager = new LogFileManager();
     this.conversationParser = new ConversationParser();
-    this.logDir = this.logFileManager.resolveLogDirectory(config.projectDir);
-    
+
+    //默认从当前项目的.claude-trace/cclog目录获取cc日志文件，如果cclog不存在，再从.claude/projects下获取
+    this.logDir = path.join(config.projectDir, '.claude-trace/cclog');
+    if (!fs.existsSync(this.logDir)) {
+			this.logDir = this.logFileManager.resolveLogDirectory(config.projectDir);
+		}
+  
     // 设置ConversationParser的日志目录
     this.conversationParser.setLogDirectory(this.logDir);
     
@@ -290,7 +334,7 @@ export class WebServer {
         console.log(`查找LLM日志: fileId=${fileId}, messageId=${messageId}`);
         
         // 1. 直接在日志目录中查找对应的文件
-        const traceDir = path.join(this.config.projectDir, '.claude-trace');
+        const traceDir = path.join(this.config.projectDir, '.claude-trace', 'tracelog');
         let resObj
         const jsonlFilePath = path.join(traceDir, `${fileId}.jsonl`);
 
@@ -471,7 +515,11 @@ export class WebServer {
         const requestHeaders = req.body.headers;
         const requestBody = req.body.body;
 
-        requestHeaders['authorization'] = `Bearer ${process.env.ANTHROPIC_AUTH_TOKEN}`;
+        const authToken = this.getAuthToken();
+        if (!authToken) {
+          throw new Error('无法获取ANTHROPIC_AUTH_TOKEN，请检查设置文件或环境变量');
+        }
+        requestHeaders['authorization'] = `Bearer ${authToken}`;
         requestBody.stream = false;
 
         // 发起HTTP请求到Anthropic API
@@ -481,7 +529,7 @@ export class WebServer {
           rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false
         });
 
-        const response = await fetch('https://open.bigmodel.cn/api/anthropic/v1/messages', {
+        const response = await fetch(req.body.url, {
           method: 'POST',
           headers: requestHeaders,
           body: JSON.stringify(requestBody),

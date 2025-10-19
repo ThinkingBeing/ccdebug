@@ -14,6 +14,13 @@ export declare class WebServer {
     private anthropic;
     private logDir;
     private fileWatcher;
+    /**
+     * 按优先级获取ANTHROPIC_AUTH_TOKEN
+     * 1. 从项目目录的.claude/settings.local.json获取
+     * 2. 从全局Claude目录的settings.local.json获取
+     * 3. 从全局环境变量获取
+     */
+    private getAuthToken;
     constructor(config: WebServerConfig);
     private setupBasicMiddleware;
     private setupStaticFiles;

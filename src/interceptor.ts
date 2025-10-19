@@ -3,6 +3,8 @@ import path from "path";
 import { spawn } from "child_process";
 import { RawPair } from "./types";
 import { HTMLGenerator } from "./html-generator";
+import { LogFileManager } from "./log-file-manager";
+import { error } from "console";
 
 export interface InterceptorConfig {
 	logDirectory?: string;
@@ -12,8 +14,11 @@ export interface InterceptorConfig {
 }
 
 export class ClaudeTrafficLogger {
-	private logDir: string;
-	private logFile: string;
+	private traceHomeDir: string;
+	private traceLogDir: string;
+	private traceLogFile: string;
+	private ccLogDir: string;
+	private ccLogFile: string;
 	private htmlFile: string;
 	private pendingRequests: Map<string, any> = new Map();
 	private pairs: RawPair[] = [];
@@ -28,29 +33,40 @@ export class ClaudeTrafficLogger {
 			...config,
 		};
 
-		// Create log directory if it doesn't exist
-		this.logDir = this.config.logDirectory!;
-		if (!fs.existsSync(this.logDir)) {
-			fs.mkdirSync(this.logDir, { recursive: true });
+		//创建.claude-trace目录
+		this.traceHomeDir = this.config.logDirectory!;
+		if (!fs.existsSync(this.traceHomeDir)) {
+			fs.mkdirSync(this.traceHomeDir, { recursive: true });
 		}
+		//创建tracelog目录
+		this.traceLogDir = path.join(this.traceHomeDir, 'tracelog');
+		if (!fs.existsSync(this.traceLogDir)) {
+			fs.mkdirSync(this.traceLogDir, { recursive: true });
+		}
+		// 创建cclog目录
+		this.ccLogDir = path.join(this.traceHomeDir, 'cclog');
+		if (!fs.existsSync(this.ccLogDir)) {
+			fs.mkdirSync(this.ccLogDir, { recursive: true });
+		}
+		this.ccLogFile = '';
 
 		// Generate filenames based on custom name or timestamp
 		const logBaseName = config?.logBaseName || process.env.CLAUDE_TRACE_LOG_NAME;
 		const fileBaseName =
 			logBaseName || `log-${new Date().toISOString().replace(/[:.]/g, "-").replace("T", "-").slice(0, -5)}`; // Remove milliseconds and Z
 
-		this.logFile = path.join(this.logDir, `${fileBaseName}.jsonl`);
-		this.htmlFile = path.join(this.logDir, `${fileBaseName}.html`);
+		this.traceLogFile = path.join(this.traceLogDir, `${fileBaseName}.jsonl`);
+		this.htmlFile = path.join(this.traceLogDir, `${fileBaseName}.html`);
 
 		// Initialize HTML generator
 		this.htmlGenerator = new HTMLGenerator();
 
 		// Clear log file
-		fs.writeFileSync(this.logFile, "");
+		fs.writeFileSync(this.traceLogFile, "");
 
 		// Output the actual filenames with absolute paths
 		console.log(`Logs will be written to:`);
-		console.log(`  JSONL: ${path.resolve(this.logFile)}`);
+		console.log(`  JSONL: ${path.resolve(this.traceLogFile)}`);
 		console.log(`  HTML:  ${path.resolve(this.htmlFile)}`);
 	}
 
@@ -407,7 +423,7 @@ export class ClaudeTrafficLogger {
 	private async writePairToLog(pair: RawPair): Promise<void> {
 		try {
 			const jsonLine = JSON.stringify(pair) + "\n";
-			fs.appendFileSync(this.logFile, jsonLine);
+			fs.appendFileSync(this.traceLogFile, jsonLine);
 		} catch (error) {
 			// Silent error handling during runtime
 		}
@@ -440,7 +456,7 @@ export class ClaudeTrafficLogger {
 
 			try {
 				const jsonLine = JSON.stringify(orphanedPair) + "\n";
-				fs.appendFileSync(this.logFile, jsonLine);
+				fs.appendFileSync(this.traceLogFile, jsonLine);
 			} catch (error) {
 				console.log(`Error writing orphaned request: ${error}`);
 			}
@@ -449,8 +465,15 @@ export class ClaudeTrafficLogger {
 		this.pendingRequests.clear();
 		console.log(`Cleanup complete. Logged ${this.pairs.length} pairs`);
 
-		// Rename log file based on sessionid from first record
-		this.renameLogFileBySessionId();
+		//获取cc会话的sessionid
+		let sessionId = this.getSessionIdFromLog();
+		if(sessionId != '') {
+			//将当前会话对应的cc日志文件，拷贝到.claude-trace/cclog目录
+			this.copyCClogFile(sessionId);
+
+			// Rename log file based on sessionid from first record
+			this.renameTraceLogFileBySessionId(sessionId);
+		}
 
 		// Open browser if requested
 		// const shouldOpenBrowser = process.env.CLAUDE_TRACE_OPEN_BROWSER === "true";
@@ -464,50 +487,93 @@ export class ClaudeTrafficLogger {
 		// }
 	}
 
-	private renameLogFileBySessionId(): void {
+	private getSessionIdFromLog(): string {
+		// Check if log file exists
+		if (!fs.existsSync(this.traceLogFile)) {
+			console.log("获取sessionId错误：Log file does not exist");
+			return '';
+		}
+
+		// Read the first line of the JSONL file
+		const fileContent = fs.readFileSync(this.traceLogFile, 'utf-8');
+		const lines = fileContent.split('\n').filter(line => line.trim());
+		
+		if (lines.length === 0) {
+			console.log("获取sessionId错误：Log file is empty");
+			return '';
+		}
+
+		// 循环读取日志，直到找到user_id为止
+		let userId = null;
+		
+		for (const line of lines) {
+			const record = JSON.parse(line);
+			userId = record?.request?.body?.metadata?.user_id;
+			if (userId) {
+				break;
+			}
+		}
+		
+		if (!userId) {
+			console.log("获取sessionId错误：No user_id found in any record");
+			return '';
+		}
+
+		// Extract sessionid from user_id (format: xxxx_session_{sessionid})
+		const sessionMatch = userId.match(/_session_([^_]+)$/);
+		if (!sessionMatch || !sessionMatch[1]) {
+			console.log(`获取sessionId错误：No sessionid found in user_id: ${userId}`);
+			return '';
+		}
+
+		return sessionMatch[1];
+	}
+
+	private copyCClogFile(sessionId: string): void {
+		//将当前会话对应的cc日志文件，拷贝到.claude-trace/cclog目录
 		try {
-			// Check if log file exists
-			if (!fs.existsSync(this.logFile)) {
-				console.log("Log file does not exist, skipping rename");
+			// 创建LogFileManager实例
+			const logFileManager = new LogFileManager();
+
+			// 获取当前工作目录作为项目路径
+			const currentProjectPath = process.cwd();
+
+			// 通过LogFileManager解析源日志目录
+			const sourceLogDir = logFileManager.resolveLogDirectory(currentProjectPath);
+
+			// 构建源文件路径（假设源文件名为sessionId.jsonl）
+			const sourceFile = path.join(sourceLogDir, `${sessionId}.jsonl`);
+
+			// 构建目标文件路径
+			this.ccLogFile = path.join(this.ccLogDir, `${sessionId}.jsonl`);
+
+			// 检查源文件是否存在
+			if (!fs.existsSync(sourceFile)) {
+				console.log(`源CC日志文件不存在: ${sourceFile}`);
 				return;
 			}
 
-			// Read the first line of the JSONL file
-			const fileContent = fs.readFileSync(this.logFile, 'utf-8');
-			const lines = fileContent.split('\n').filter(line => line.trim());
+			// 拷贝文件
+			fs.copyFileSync(sourceFile, this.ccLogFile);
+			console.log(`CC日志文件已从 ${sourceFile} 拷贝到 ${this.ccLogFile}`);
+
+		} catch (error) {
+			console.log(`拷贝CC日志文件时出错: ${error}`);
+		}
+	}
+
+	private renameTraceLogFileBySessionId(sessionId: string): void {
+		try {
 			
-			if (lines.length === 0) {
-				console.log("Log file is empty, skipping rename");
-				return;
-			}
-
-			// Parse the first record
-			const firstRecord = JSON.parse(lines[0]);
-			
-			// Extract user_id from request.metadata.user_id
-			const userId = firstRecord?.request?.body?.metadata?.user_id;
-			if (!userId) {
-				console.log("No user_id found in first record, skipping rename");
-				return;
-			}
-
-			// Extract sessionid from user_id (format: xxxx_session_{sessionid})
-			const sessionMatch = userId.match(/_session_([^_]+)$/);
-			if (!sessionMatch || !sessionMatch[1]) {
-				console.log(`No sessionid found in user_id: ${userId}, skipping rename`);
-				return;
-			}
-
-			const sessionId = sessionMatch[1];
-			const logDir = path.dirname(this.logFile);
+			const logDir = path.dirname(this.traceLogFile);
 			const newLogFile = path.join(logDir, `${sessionId}.jsonl`);
 
 			// Rename the file
-			fs.renameSync(this.logFile, newLogFile);
-			console.log(`Log file renamed from ${path.basename(this.logFile)} to ${sessionId}.jsonl`);
+			fs.renameSync(this.traceLogFile, newLogFile);
+			console.log(`Log file renamed from ${path.basename(this.traceLogFile)} to ${sessionId}.jsonl`);
 			
 			// Update the logFile path for future reference
-			this.logFile = newLogFile;
+			this.traceLogFile = newLogFile;
 
 		} catch (error) {
 			console.log(`Error renaming log file: ${error}`);
@@ -518,7 +584,7 @@ export class ClaudeTrafficLogger {
 		return {
 			totalPairs: this.pairs.length,
 			pendingRequests: this.pendingRequests.size,
-			logFile: this.logFile,
+			logFile: this.traceLogFile,
 			htmlFile: this.htmlFile,
 		};
 	}

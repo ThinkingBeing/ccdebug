@@ -386,20 +386,20 @@ const truncateContentByHeight = (content: string, maxHeight: number) => {
 }
 
 // 格式化日期
-const formatDate = (timestamp: string) => {
-  if (!timestamp) return ''
+// const formatDate = (timestamp: string) => {
+//   if (!timestamp) return ''
   
-  const date = new Date(timestamp)
-  if (isNaN(date.getTime())) {
-    return '' // 如果时间戳无效，返回空字符串
-  }
+//   const date = new Date(timestamp)
+//   if (isNaN(date.getTime())) {
+//     return '' // 如果时间戳无效，返回空字符串
+//   }
   
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  })
-}
+//   return date.toLocaleDateString('zh-CN', {
+//     year: 'numeric',
+//     month: '2-digit',
+//     day: '2-digit'
+//   })
+// }
 
 // 格式化时间 (HH:MM:SS)
 const formatTime = (timestamp: string) => {
@@ -410,9 +410,9 @@ const formatTime = (timestamp: string) => {
     return '' // 如果时间戳无效，返回空字符串
   }
   
-  // 转换为中国时区 (UTC+8)
-  const chinaTime = new Date(date.getTime() + (8 * 60 * 60 * 1000))
-  return chinaTime.toLocaleTimeString('zh-CN', {
+  //转换为中国时区 (UTC+8)
+  //const chinaTime = new Date(date.getTime() + (8 * 60 * 60 * 1000))
+  return date.toLocaleTimeString({
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
@@ -421,10 +421,10 @@ const formatTime = (timestamp: string) => {
 }
 
 // 格式化完整日期时间
-const formatDateTime = (timestamp: string) => {
-  const date = new Date(timestamp)
-  return date.toLocaleString('zh-CN')
-}
+// const formatDateTime = (timestamp: string) => {
+//   const date = new Date(timestamp)
+//   return date.toLocaleString('zh-CN')
+// }
 
 // 获取节点类型标签
 const getNodeTypeLabel = (type: string) => {
@@ -534,9 +534,7 @@ onMounted(() => {
 
 // 确保所有方法都被正确暴露给模板
 defineExpose({
-  formatDate,
   formatTime,
-  formatDateTime,
   getNodeTypeLabel,
   getNodeTooltip,
   getNodeColor,

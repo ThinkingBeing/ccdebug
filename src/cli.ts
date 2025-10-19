@@ -5,6 +5,19 @@ import * as path from "path";
 import * as fs from "fs";
 import { HTMLGenerator } from "./html-generator";
 
+/**
+ * 获取工具版本号
+ */
+function getVersion(): string {
+	try {
+		const packageJsonPath = path.join(__dirname, "..", "package.json");
+		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+		return packageJson.version || "unknown";
+	} catch (error) {
+		return "unknown";
+	}
+}
+
 // Colors for output
 export const colors = {
 	red: "\x1b[0;31m",
@@ -37,6 +50,7 @@ ${colors.yellow}OPTIONS:${colors.reset}
   --no-open          Don't open generated HTML file in browser
   --log              Specify custom log file base name (without extension)
   --claude-path      Specify custom path to Claude binary
+  --version, -v      Show version information
   --help, -h         Show this help message
 
 ${colors.yellow}MODES:${colors.reset}
@@ -515,6 +529,12 @@ async function main(): Promise<void> {
 	} else {
 		claudeTraceArgs = args;
 		claudeArgs = [];
+	}
+
+	// Check for version flags
+	if (claudeTraceArgs.includes("--version") || claudeTraceArgs.includes("-v")) {
+		console.log(`CCDebug version ${getVersion()}`);
+		process.exit(0);
 	}
 
 	// Check for help flags
