@@ -446,7 +446,7 @@ const formatMetadataValue = (value: any): string => {
   overflow-x: auto;
   max-height: 500px;
   overflow-y: auto;
-  white-space: pre;
+  white-space: pre-wrap;
   word-wrap: break-word;
   width: 100%;
   box-sizing: border-box;
