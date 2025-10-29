@@ -1,0 +1,242 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FunctionPage Schema",
+  "description": "FunctionPage JSON 是对页面结构描述的JSON格式文件，主要有页面布局以及页面子控件组件",
+  "type": "object",
+  "required": [
+    "metadataType",
+    "createdBy",
+    "createdOn",
+    "modifiedBy",
+    "modifiedOn",
+    "metadataStatus",
+    "functionPageId",
+    "name",
+    "application",
+    "functionGUID",
+    "title",
+    "pageName",
+    "titleEn",
+    "titleSuffix",
+    "url",
+    "pageType",
+    "functionCode",
+    "page",
+    "pageLayout"
+  ],
+  "properties": {
+    "metadataType": {
+      "type": "string",
+      "description": "当前元数据类型",
+      "enum": ["FunctionPage"]
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "创建人"
+    },
+    "createdOn": {
+      "type": "string",
+      "description": "创建时间，日期类型",
+      "format": "date-time"
+    },
+    "modifiedBy": {
+      "type": "string",
+      "description": "修改人"
+    },
+    "modifiedOn": {
+      "type": "string",
+      "description": "修改时间",
+      "format": "date-time"
+    },
+    "metadataStatus": {
+      "type": "string",
+      "description": "状态，枚举类型",
+      "enum": ["Product", "Customize"]
+    },
+    "functionPageId": {
+      "type": "string",
+      "description": "GUID类型，页面元数据唯一ID",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "name": {
+      "type": "string",
+      "description": "页面运行时唯一ID，GUID类型",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "application": {
+      "type": "string",
+      "description": "应用（子系统）编码，取自 <MyApplication> 元数据的 application 属性"
+    },
+    "functionGUID": {
+      "type": "string",
+      "description": "业务单元GUID <MyFunction> 业务单元数据中的 functionGuid 属性",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "title": {
+      "type": "string",
+      "description": "页面标题"
+    },
+    "pageName": {
+      "type": "string",
+      "description": "页面设计器名称"
+    },
+    "titleEn": {
+      "type": "string",
+      "description": "页面编码，唯一，由字母和数字组成",
+      "pattern": "^[a-zA-Z0-9_]+$"
+    },
+    "titleSuffix": {
+      "type": "string",
+      "description": "页面类型",
+      "enum": ["列表页面", "表单页面"]
+    },
+    "url": {
+      "type": "string",
+      "description": "页面运行时访问地址，固定格式：/std/{@functionCode}/{@name}"
+    },
+    "pageType": {
+      "type": ["string","integer"],
+      "description": "固定值 0",
+      "enum": ["0", 0]
+    },
+    "functionCode": {
+      "type": "string",
+      "description": "业务单元编码（模块编码），为 <MyFunction> 业务单元元数据中的 functionCode 属性"
+    },
+    "description": {
+      "type": "string",
+      "description": "页面简单描述"
+    },
+    "page": {
+      "type": "object",
+      "description": "页面事件定义",
+      "required": ["events"],
+      "properties": {
+        "events": {
+          "type": "array",
+          "description": "页面事件列表",
+          "items": {
+            "type": "object",
+            "required": ["name", "functionName", "enabled"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "事件名称"
+              },
+              "functionName": {
+                "type": "string",
+                "description": "事件函数名称，固定格式：Mysoft.{@appShortName}.M{@functionCode}.{@titleEn}"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "是否启用"
+              }
+            }
+          }
+        }
+      }
+    },
+    "pageLayout": {
+      "type": "object",
+      "description": "页面布局和控件内容",
+      "required": ["pageLayoutCategory", "layoutType", "pageMargin", "pageHeightSetting", "cells"],
+      "properties": {
+        "pageLayoutCategory": {
+          "type": "string",
+          "description": "页面布局类型，默认为 OneColumn 单列模式",
+          "enum": ["OneColumn"]
+        },
+        "layoutType": {
+          "type": "string",
+          "description": "固定值 0",
+          "enum": ["0"]
+        },
+        "pageMargin": {
+          "type": "string",
+          "description": "页面边距，固定值 0",
+          "enum": ["0"]
+        },
+        "pageHeightSetting": {
+          "type": "string",
+          "description": "页面平铺模式，固定为 Repeat",
+          "enum": ["Repeat"]
+        },
+        "cells": {
+          "type": "array",
+          "description": "页面布局单元格数组",
+          "items": {
+            "$ref": "#/definitions/cell"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "cell": {
+      "type": "object",
+      "description": "布局单元格",
+      "required": ["id", "width", "height", "isHidden", "rowIndex", "direction"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "单元格ID，GUID类型",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "width": {
+          "type": "string",
+          "description": "单元格宽度"
+        },
+        "height": {
+          "type": "string",
+          "description": "单元格高度"
+        },
+        "isHidden": {
+          "type": "boolean",
+          "description": "是否隐藏"
+        },
+        "rowIndex": {
+          "type": "string",
+          "description": "行索引，从0开始"
+        },
+        "direction": {
+          "type": "string",
+          "description": "布局方向",
+          "enum": ["row", "column"]
+        },
+        "cells": {
+          "type": "array",
+          "description": "子单元格数组",
+          "items": {
+            "$ref": "#/definitions/cell"
+          }
+        },
+        "control": {
+          "type": "object",
+          "description": "单元格布局中的控件信息",
+          "required": ["id", "type", "metadataId"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "控件ID，比如：x_appGrid1、x_appForm1，多个控件不允许重复"
+            },
+            "type": {
+              "type": "string",
+              "description": "控件类型",
+              "enum": ["Mysoft.Map6.Modeling.Controls.AppGrid", "Mysoft.Map6.Modeling.Controls.AppForm"]
+            },
+            "metadataId": {
+              "type": "string",
+              "description": "对应的控件元数据ID，该ID需要在'code/AppGrid'或者'code/AppForm'文件夹中存在同名的JSON文件，否则提示页面中关联控件ID错误",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            },
+            "autoHeight": {
+              "type": "string",
+              "description": "是否自适应容器高度，默认为 1",
+              "enum": ["0", "1"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

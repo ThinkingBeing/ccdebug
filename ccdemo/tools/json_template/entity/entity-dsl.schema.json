@@ -1,0 +1,269 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Entity DSL Schema",
+  "description": "实体JSON模板的Schema定义",
+  "type": "object",
+  "required": [
+    "metadataType",
+    "entityId",
+    "name",
+    "displayName",
+    "application",
+    "functionGUID",
+    "fields"
+  ],
+  "properties": {
+    "metadataType": {
+      "type": "string",
+      "description": "元数据类型",
+      "enum": [
+        "MetadataEntity"
+      ]
+    },
+    "entityId": {
+      "type": "string",
+      "description": "实体ID",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "name": {
+      "type": "string",
+      "description": "实体名称"
+    },
+    "displayName": {
+      "type": "string",
+      "description": "实体显示名称"
+    },
+    "application": {
+      "type": "string",
+      "description": "应用ID"
+    },
+    "remark": {
+      "type": "string",
+      "description": "备注"
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "创建人"
+    },
+    "createdOn": {
+      "type": "string",
+      "description": "创建时间",
+      "format": "date-time"
+    },
+    "modifiedBy": {
+      "type": "string",
+      "description": "修改人"
+    },
+    "modifiedOn": {
+      "type": "string",
+      "description": "修改时间",
+      "format": "date-time"
+    },
+    "functionGUID": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "功能GUID"
+    },
+    "fields": {
+      "type": "array",
+      "description": "字段数组",
+      "items": {
+        "type": "object",
+        "required": [
+          "attributeId",
+          "dbType",
+          "attributeType",
+          "name",
+          "displayName"
+        ],
+        "properties": {
+          "attributeId": {
+            "type": "string",
+            "description": "字段ID",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "name": {
+            "type": "string",
+            "description": "字段名称"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "字段显示名称"
+          },
+          "attributeType": {
+            "type": "string",
+            "description": "字段类型",
+            "enum": [
+              "Guid",
+              "文本（nvarchar(16)）",
+              "文本（nvarchar(32)）",
+              "文本（nvarchar(64)）",
+              "文本（nvarchar(128)）",
+              "文本（nvarchar(512)）",
+              "文本（nvarchar(1024)）",
+              "文本（nvarchar(max)）",
+              "日期与时间",
+              "整数",
+              "金额",
+              "面积",
+              "附件",
+              "图片",
+              "时间戳"
+            ]
+          },
+          "dbType": {
+            "type": "string",
+            "description": "数据库类型",
+            "enum": [
+              "uniqueidentifier",
+              "nvarchar",
+              "int",
+              "datetime",
+              "decimal",
+              "timestamp"
+            ]
+          },
+          "length": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "长度，如果字段类型无需长度配置（如主键、时间日期），值为null"
+          },
+          "isNullable": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "是否可为空"
+          },
+          "decimalPrecision": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "小数精度，如果字段类型无需小数精度配置，值为null"
+          },
+          "relationshipId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "关联ID，默认null"
+          },
+          "lookupPrimaryEntityId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "查找实体ID，默认null"
+          },
+          "statusLabel": {
+            "type": "object",
+            "description": "状态标签配置",
+            "properties": {
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "style": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "radio": {
+            "type": "object",
+            "description": "单选框配置",
+            "properties": {
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "isDefault": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "checkBox": {
+            "type": "object",
+            "description": "复选框配置",
+            "properties": {
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "isDefault": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "description": "关系定义",
+      "properties": {
+        "relationship": {
+          "type": "array",
+          "description": "关系数组",
+          "items": {
+            "type": "object",
+            "properties": {
+              "relationshipId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "关系ID"
+              },
+              "lookupPrimaryEntityId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "查找实体ID"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

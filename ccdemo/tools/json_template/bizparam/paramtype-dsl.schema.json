@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "ParamType Schema",
+  "description": "业务参数分组元数据结构",
+  "properties": {
+    "metadataType": {
+      "type": "string",
+      "enum": ["ParamType"],
+      "description": "元数据类型"
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "创建人"
+    },
+    "createdOn": {
+      "type": "string",
+      "format": "date-time",
+      "description": "创建时间"
+    },
+    "modifiedBy": {
+      "type": "string",
+      "description": "修改人"
+    },
+    "modifiedOn": {
+      "type": "string",
+      "format": "date-time",
+      "description": "修改时间"
+    },
+    "metadataStatus": {
+      "type": "string",
+      "enum": ["Customize", "System"],
+      "description": "元数据状态"
+    },
+    "typeGuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "类型GUID"
+    },
+    "name": {
+      "type": "string",
+      "description": "名称"
+    },
+    "applicationGuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "应用GUID"
+    },
+    "application": {
+      "type": "string",
+      "description": "应用编码"
+    },
+    "functionGUID": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "功能GUID"
+    },
+    "orderId": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "排序ID"
+    }
+  },
+  "required": [
+    "metadataType",
+    "createdBy",
+    "createdOn",
+    "modifiedBy",
+    "modifiedOn",
+    "metadataStatus",
+    "typeGuid",
+    "name",
+    "applicationGuid",
+    "application",
+    "functionGUID",
+    "orderId"
+  ],
+  "additionalProperties": false
+}

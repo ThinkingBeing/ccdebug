@@ -1,0 +1,436 @@
+{
+  // AppGrid JSON 是对列表控件结构描述的JSON格式文件
+  // 主要由工具栏按钮配置、筛选区域配置、视图区域配置三部分组成
+  
+  // 元数据基本信息
+  "metadataType": "AppGrid", // 当前元数据类型，固定值：AppGrid
+  "createdBy": "创建人", // 创建人的用户标识，当前可以使用 ModelingAI 来标识
+  "createdOn": "创建时间，日期格式", // 创建时间，日期类型
+  "modifiedBy": "修改人", // 修改人的用户标识
+  "modifiedOn": "修改时间，日期格式", // 修改时间，日期类型
+  "metadataStatus": "状态，枚举类型：Product｜Customize", // 状态，枚举类型：Product｜Customize
+  
+  // 控件基本信息
+  "name": "控件名称", // 列表控件名称
+  "functionPageId": "页面ID，GUID类型", // 所属页面ID，GUID格式
+  "description": "控件描述", // 控件描述
+  "gridId": "控件唯一ID，GUID类型", // 控件ID，GUID类型，同文件名称
+  "application": "应用（系统）编码", // 应用编码（系统编码）
+  
+  // 布局配置
+  "layout_pageSize": 20, // 分页数，默认20，可设置 20、50、100、200
+  "layout_entityName": "主表英文名", // 列表主数据源实体表英文名
+  "layout_entityId": "主表ID，GUID类型", // 列表主数据源实体表ID
+  
+  // 项目过滤
+  "layout_projectFilter": false, //如果存在项目过滤，此处需要设置为true
+
+  // 工具栏按钮配置：配置列表控件的操作按钮、行按钮信息
+  "toolbar": {
+    // 批量操作按钮：一般用于批量操作的按钮，比如：批量删除等
+    "batchButtons": [
+      {}
+    ],
+    
+    // 全局操作按钮：列表全局操作按钮，比如：新增、打印、导出
+    "globalButtons": [
+      {
+        "itemId": "节点ID，GUID类型", // 菜单按钮ID，GUID类型，唯一
+        "title": "菜单按钮显示名称", // 菜单名称
+        "type": "menu", // 类型：button / menu
+        "id": "菜单按钮英文名称，menu_more", // 菜单英文名
+        "isMenuButton": false, // 是否菜单按钮，false
+        "isHidden": false, // 是否隐藏
+        "isDisabled": false, // 是否禁用
+        "items": [ // 菜单中的按钮集合
+          {
+            "itemId": "节点ID，GUID类型", // 按钮ID，GUID类型，唯一
+            "title": "按钮显示名称", // 按钮显示名称
+            "type": "button", // 按钮类型
+            "id": "button_print", // 按钮英文ID
+            "isMenuButton": true, // 在菜单中，标记为true
+            "isHidden": false, // 是否隐藏
+            "isDisabled": false, // 是否禁用
+            "events": [ // 按钮事件，默认有一个 onclick 事件
+              {
+                "name": "onclick",
+                "functionName": "Mysoft.Map6.UI.Template.Grid.print(e)", // 系统内置的打印事件
+                "enabled": true
+              }
+            ]
+          },
+          {
+            "itemId": "节点ID，GUID类型",
+            "title": "导出",
+            "type": "button",
+            "id": "button_export",
+            "isMenuButton": true,
+            "isHidden": false,
+            "isDisabled": false,
+            "events": [
+              {
+                "name": "onclick",
+                "functionName": "Mysoft.Map6.UI.Template.Grid.exportExcel(e)", // 系统内置的导出事件
+                "enabled": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    
+    // 行操作按钮：列表数据行上的操作按钮，比如：编辑、详情、删除等
+    "rowButtons": [
+      {
+        "itemId": "节点ID，GUID类型",
+        "title": "删除",
+        "type": "button",
+        "id": "button_delete",
+        "isMenuButton": false, // 不在菜单中，标记为false
+        "isHidden": false,
+        "isDisabled": false,
+        "events": [
+          {
+            "name": "onclick",
+            "functionName": "Mysoft.Map6.UI.Template.Grid.deleteCurrentRow()", // 系统内置的删除事件
+            "enabled": true
+          }
+        ]
+      }
+    ]
+  },
+  
+  // 筛选区域配置：配置列表控件的筛选条件
+  "filter": {
+        "filterId": "筛选节点ID，GUID类型",
+        "labelWidth": "91", // 筛选标签宽度
+        "conditions": [
+            {
+                "id": "筛选条件ID，GUID类型",
+                "searchType": "eq",
+                "name": "ProjectSelect",
+                "layout": "horizontal",
+                "title": "项目",
+                "projectSelect": {
+                    "field": "ProjectSelect",
+                    "filterType": "1",
+                    "displayType": "5",
+                    "filterMethod": "0",
+                    "inherit": "0",
+                    "filterable": true,
+                    "cascade": false,
+                    "label2": "项目",
+                    "displayType2": "0"
+                }
+            },
+            {
+                "id": "筛选条件ID，GUID类型",
+                "name": "Search",
+                "searchType": "eq",
+                "layout": "horizontal",
+                "title": "Search",
+                "search": {
+                    "field": "Search",
+                    "fields": [
+                        {
+                            "field": "x_AssetName",
+                            "title": "资产名称"
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "筛选条件ID，GUID类型",
+                "name": "x_AssetType",
+                "searchType": "eq",
+                "layout": "horizontal",
+                "title": "资产类别",
+                "comboBox": {
+                    "field": "x_AssetType",
+                    "optionsType": "options",
+                    "allowEmpty": false,
+                    "multiSelect": false,
+                    "allowClear": true,
+                    "filterable": false,
+                    "operatorType": "eq",
+                    "options": [
+                        {
+                            "value": "土地",
+                            "text": "土地",
+                            "isDefault": false
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "筛选条件ID，GUID类型",
+                "name": "x_BeginDate",
+                "searchType": null,
+                "layout": "horizontal",
+                "title": "填报开始",
+                "dateRange": {
+                    "field": "x_BeginDate",
+                    "format": "yyyy-MM-dd",
+                    "dataFrom": "options",
+                    "allowClear": true,
+                    "options": [
+                        {
+                            "value": "今天开始",
+                            "text": "今天开始",
+                            "isDefault": false
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "筛选条件ID，GUID类型",
+                "name": "x_AnnualRentAmount",
+                "searchType": null,
+                "layout": "vertical",
+                "title": "年租金（万元）",
+                "numberRange": {
+                    "field": "x_AnnualRentAmount",
+                    "precision": 2,
+                    "precisionType": 0,
+                    "rounding": 2,
+                    "roundingType": 0,
+                    "showThousandths": true,
+                    "allowZero": true,
+                    "showPercentage": false,
+                    "unitTextType": 0,
+                    "minValue": "-99999999999.99",
+                    "maxValue": "99999999999.99",
+                    "minOperatorType": "ge",
+                    "maxOperatorType": "le",
+                    "options": [
+                        {
+                            "fromValue": "0",
+                            "toValue": "100",
+                            "text": "0~100",
+                            "isDefault": false
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+  
+  // 视图区域配置：支持多个视图，每个视图可以单独配置数据源和需要显示的字段
+  "views": [
+    {
+      "viewId": "视图唯一ID，GUID类型", // 视图唯一ID，如果多个视图，ID需要唯一
+      "name": "视图显示名称", // 视图显示名称，比如：全部、待审批、审批中等
+      "isDefault": false, // 是否默认显示，多个视图仅有一个视图可以指定true
+      "isHidden": false, // 是否隐藏
+      "entityId": "主表ID，GUID类型", // 视图中的主数据源数据表ID
+      
+      // 视图中的数据源详细配置
+      "dataSource": {
+        "keyName": "主表主键名称", // 主数据表的主键字段名称
+        "entity": "主表英文名", // 主数据表的英文名称
+        
+        // 数据表节点配置数组，一个表对应一个 diagram 节点
+        "diagrams": [
+          {
+            "id": "主数据表ID，GUID类型", // 这里是主表的ID，数据表（Entity）的ID（entityId）
+            "name": "数据表英文名", // 数据表的英文名称
+            "primaryField": "主键", // 数据表的主键字段名称
+            "parentId": null, // 父级节点的ID，主表节点为null
+            "type": 0, // 节点类型，0 表示数据表，1 表示视图
+            "isMaster": true, // 是否为主表标识，一个视图数据源中只能有一个主表
+            "joinType": 0, // 与主表的关联关系，0 表示 inner join，1 表示 left join
+            "diagramRelation": null, // 关联关系定义，主表无需定义
+            "logicFormula": "", // 逻辑表达式，用于定义多个条件之间的组合关系
+            "conditionType": 0, // 数据源的过滤条件类型，0：简单 AND 关系
+            "conditions": [ // 过滤条件定义
+              {
+                "field": "x_asset_AssetLeaseInfo.x_AssetType", // 过滤的字段值，由表英文名.字段英文名组成
+                "operatorType": "like", // 过滤方式：eq等于、ne不等于、like包含等
+                "id": "节点ID，GUID类型", // 条件ID
+                "dataType": "string", // 字段的数据类型：number、string、date
+                "valueType": "0", // 比较的值类型：0固定值、1URL参数、2系统参数、3业务参数、4数据字段
+                "leftValueType": "field", // 条件过滤类型，默认为 field
+                "value": "写字楼" // 条件比较的具体的值
+              }
+            ]
+          },
+          {
+            // 子表或关联表节点示例
+            "id": "子表数据表ID，GUID类型",
+            "name": "数据表英文名",
+            "primaryField": "主键名称",
+            "parentId": "与之关联的主表的ID，GUID类型", // 父级节点ID
+            "type": 0,
+            "isMaster": false, // 关联表标记为false
+            "joinType": 1, // left join
+            "diagramRelation": { // 关联关系定义
+              "primaryEntityName": "x_asset_AssetLeaseInfo", // 主表英文名称
+              "primaryFieldName": "x_ProjGUID", // 主表关联字段名称
+              "entityName": "p_Project", // 关联表英文名称
+              "fieldName": "p_projectId", // 关联表关联字段名称
+              "relation": "x_asset_AssetLeaseInfo.x_ProjGUID = p_Project.p_projectId", // 表关系SQL表达式
+              "type": "OneToMore" // 关系类型：OneToOne一对一、OneToMore一对多
+            },
+            "conditionType": 0,
+            "conditions": []
+          }
+        ]
+      },
+      
+      // 视图中的数据列配置
+      "columns": [
+        {
+          // 文本类型列示例
+          "name": "字段英文名", // 列英文名，取字段英文名
+          "title": "列显示名称", // 列中文名，取字段中文名
+          "width": 120, // 列宽，数值类型，默认为 120
+          "entityName": "", // 字段所属表名
+          "field": "字段英文名", // 字段英文名
+          "isRepeat": false, // 字段是否重复，如果绑定的字段是关联表字段，且主表中存在同名的字段，则属性需要设置为 true
+          "allowEdit": false, // 是否允许编辑
+          "id": "列ID，GUID类型", // 列ID，唯一
+          "isHidden": false, // 是否隐藏列
+          "dataType": "text", // 数据类型：text、number、date
+          "align": "left", // 对齐方式：文本left、数值right、日期center
+          "dataSourceType": "Field", // 固定值
+          "allowSort": false, // 允许排序
+          "isSummaryColumn": false, // 是否合计列
+          "isBold": false, // 是否加粗
+          "tips": "", // 列提示
+          "textBox": { // 文本框配置
+            "id": "控件ID，GUID类型", // 控件唯一标识
+            "field": "字段英文名" // 对应的数据字段名
+          }
+        },
+        {
+          // 数值类型列示例
+          "name": "字段英文名",
+          "title": "列显示名称",
+          "width": 120,
+          "entityName": "", // 字段所属表名
+          "field": "字段英文名",
+          "isRepeat": false, // 字段是否重复，如果绑定的字段是关联表字段，且主表中存在同名的字段，则属性需要设置为 true
+          "allowEdit": false,
+          "id": "列ID，GUID类型",
+          "isHidden": false,
+          "dataType": "number", // 数值类型
+          "align": "right", // 数值类型右对齐
+          "allowSort": false, // 允许排序
+          "isSummaryColumn": false, // 是否合计列
+          "isBold": false,
+          "tips": "",
+          "spinner": { // 数值输入框配置
+            "id": "控件ID，GUID类型",
+            "field": "字段英文名",
+            "precision": 2, // 数值精度(保留小数位数)
+            "precisionType": 0, // 精度配置类型，0表示使用固定值
+            "rounding": 2, // 四舍五入小数位数
+            "roundingType": 0, // 四舍五入配置类型
+            "showThousandths": true, // 是否显示千分位分隔符
+            "unitText": "", // 数值单位文本
+            "unitTextType": 0, // 单位配置类型
+            "minValue": "-99999999999.99", // 允许输入的最小值
+            "maxValue": "99999999999.99", // 允许输入的最大值
+            "minOperatorType": "ge", // 最小值比较运算符，ge表示大于等于
+            "maxOperatorType": "le" // 最大值比较运算符，le表示小于等于
+          }
+        },
+        {
+          // 日期类型列示例
+          "name": "字段英文名",
+          "title": "列显示名称",
+          "width": 120,
+          "entityName": "", // 字段所属表名
+          "field": "字段英文名",
+          "isRepeat": false, // 字段是否重复，如果绑定的字段是关联表字段，且主表中存在同名的字段，则属性需要设置为 true
+          "allowEdit": false,
+          "id": "列ID，GUID类型",
+          "isHidden": false,
+          "dataType": "date", // 日期类型
+          "align": "center", // 日期类型居中对齐
+          "allowSort": false, // 允许排序
+          "isSummaryColumn": false,
+          "isBold": false,
+          "tips": "",
+          "datePicker": { // 日期选择器配置
+            "id": "控件ID，GUID类型",
+            "field": "字段英文名",
+            "format": "yyyy-MM-dd" // 日期显示格式
+          }
+        },
+        {
+          // 下拉选项类型列示例
+          "name": "字段英文名",
+          "title": "列显示名称",
+          "width": 120,
+          "entityName": "", // 字段所属表名
+          "field": "字段英文名",
+          "isRepeat": false, // 字段是否重复，如果绑定的字段是关联表字段，且主表中存在同名的字段，则属性需要设置为 true
+          "allowEdit": false,
+          "id": "列ID，GUID类型",
+          "isHidden": false,
+          "dataType": "text", // 下拉选项类型为text
+          "align": "left",
+          "dataSourceType": "Field",
+          "allowSort": false, // 允许排序
+          "isSummaryColumn": false,
+          "isBold": false,
+          "tips": "",
+          "comboBox": { // 下拉框配置
+            "id": "控件ID，GUID类型",
+            "field": "字段英文名",
+            "optionDataType": "textValue", // 选项数据类型
+            "optionsType": "options", // 选项类型
+            "options": [ // 下拉选项列表
+              {
+                "value": "选项值", // 选项值
+                "text": "选项名称", // 选项显示文本
+                "isDefault": false, // 是否默认选中
+                "disabled": false // 是否禁用
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  
+  // 控件规则配置：控件中按钮、字段等各种场景的显隐、格式规则配置
+  "rule": {
+    "configs": [{ // 规则配置数组
+        "id": "节点ID，GUID类型", // 规则ID
+        "title": "新规则", // 规则标题
+        "controlId": "b97aa1ff-0ee5-4765-b9b9-e518c3240a3d", // 控制的控件ID
+        "controlType": "column", // 控制类型：column列、button按钮等
+        "controlSubType": "", // 控制子类型
+        "controlProp": "isHidden", // 控制属性：isHidden隐藏、isDisabled禁用等
+        "controlName": "x_LeaseMode", // 控制的控件名称
+        "handles": [{ // 处理动作数组
+            "handleId": "7b80f7c7-9d61-4f9f-b2e5-18619db6005e", // 处理ID
+            "ruleId": "23cbf22e-7d32-4244-ac0f-0e59fdb73c59", // 关联的规则组ID
+            "action": "hide", // 动作：hide隐藏、show显示、disable禁用、enable启用
+            "value": "" // 动作值
+          }
+        ]
+      }
+    ],
+    "groups": [{ // 规则组数组
+        "id": "23cbf22e-7d32-4244-ac0f-0e59fdb73c59", // 规则组ID
+        "title": "办公类视图", // 规则组标题
+        "rule": { // 规则定义
+          "condition": "AND", // 条件关系：AND、OR
+          "rules": [ // 规则数组
+            {
+              "action": "viewId", // 动作类型
+              "field": "_viewId", // 字段名
+              "operator": "equal", // 操作符：equal等于、not_equal不等于等
+              "type": "string", // 数据类型
+              "value": "f63ca7df-2203-428e-bb5c-a8fb018482ae", // 比较值
+              "valueType": "text" // 值类型
+            }
+          ]
+        }
+      }
+    ]
+  },
+}

@@ -1,0 +1,23 @@
+{
+  "metadataType": "MyFunction",
+  "createdBy": "ModelingAI",
+  "createdOn": "2025-10-23T08:40:46.628Z",
+  "modifiedBy": "ModelingAI",
+  "modifiedOn": "2025-10-23T08:40:46.628Z",
+  "metadataStatus": "Customize",
+  "status": 0,
+  "application": "x_0338",
+  "functionGuid": "034eb5d0-a012-4709-8cab-771a73be7221",
+  "parentFunctionGuid": null,
+  "functionCode": "x_033810",
+  "functionName": "图书管理",
+  "hierarchyCode": "x_033810",
+  "parentHierarchyCode": "",
+  "level": 0,
+  "isDisabled": false,
+  "iconClass": "mp-icon-application",
+  "iconColor": "",
+  "orderId": "0",
+  "actions": null,
+  "homePages": null
+}

@@ -1,0 +1,62 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://nocode.crs.pvooo.com/api",
+    "ANTHROPIC_AUTH_TOKEN": "cr_d301d57b38b4c468a2ef04e78beae0162a900a953e9492ee44b021bb77b66d5d"
+  },
+  "env2": {
+    "ANTHROPIC_BASE_URL": "https://open.bigmodel.cn/api/anthropic",
+    "ANTHROPIC_MODEL": "glm-4.6",
+    "ANTHROPIC_SMALL_FAST_MODEL": "glm-4.5-air",
+    "ANTHROPIC_AUTH_TOKEN": "685e372fb7de499ea4b01f2b7069e76f.P6H7TszeXyXsadmw"
+  },
+  "permissions": {
+    "allow": [
+      "Edit(code/**/*.json)",
+      "Write(code/**/*.json)",
+      "Edit(specs/**/*.md)",
+      "Write(specs/**/*.md)",
+      "Bash(mkdir:*)",
+      "Bash(dir:*)",
+      "Bash(node:*)",
+      "Bash(find:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode":"acceptEdits"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -X POST -H \"Content-Type: application/json\" -d @- http://10.20.45.15:8085/api/hooks/preToolUse"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -X POST -H \"Content-Type: application/json\" -d @- http://10.20.45.15:8085/api/hooks/postToolUse" 
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -X POST -H \"Content-Type: application/json\" -d @- http://10.20.45.15:8085/api/hooks/sessionEnd"
+          }
+        ]
+      }
+    ]
+  }
+}

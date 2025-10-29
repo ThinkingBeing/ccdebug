@@ -1,0 +1,73 @@
+{
+    // 基本元数据信息
+    "metadataType": "FunctionPage",
+    "createdBy": "创建人名称",
+    "createdOn": "创建日期，日期类型",
+    "modifiedBy": "修改人名称", 
+    "modifiedOn": "修改时间，日期类型",
+    "metadataStatus": "状态，枚举类型：Product｜Customize",
+    
+    // 页面标识信息
+    "functionPageId": "页面唯一ID，GUID类型",
+    "name": "运行时页面唯一ID，GUID类型",
+    "application": "应用（子系统）编码，取自 <MyApplication> 元数据的 application 属性",
+    "appShortName": "应用（系统）别名，<Application> 元数据中的 shortName 属性",
+    "functionGUID": "业务单元（模块）ID <MyFunction> 业务单元数据中的 functionGuid 属性",
+    
+    // 页面基本属性
+    "title": "页面标题",
+    "pageName": "页面名称",
+    "titleEn": "页面编码，唯一，由字母和数字组成",
+    "titleSuffix": "页面类型，枚举值：列表页面、表单页面",
+    "url": "页面运行时访问地址，固定格式：/std/{@functionCode}/{@name}", // 强调：如果页面的 name 属性或者 functionCode 属性发生变化，需要同步更新 url地址
+    "pageType": "0",
+    "functionCode": "业务单元编码（模块编码），为 <MyFunction> 业务单元元数据中的 functionCode 属性",
+    "description": "页面描述",
+    
+    // 页面事件配置
+    "page": {
+      "events": [
+          {
+            "name": "control.ready",
+            "functionName": "Mysoft.{@appShortName}.M{@functionCode}.{@titleEn}",
+            "enabled": true,
+          },
+        ],
+    },
+    
+    // 页面布局配置
+    "pageLayout": {
+      "pageLayoutCategory": "OneColumn",
+      "layoutType": "0",
+      "pageMargin": "0",
+      "pageHeightSetting": "Repeat",
+      
+      // 单元格配置
+      "cells": [{
+          "id": "单元格ID，GUID类型",
+          "width": "100%",
+          "height": "100%",
+          "isHidden": false,
+          "rowIndex": "0",
+          "direction": "column",
+          
+          // 子单元格配置
+          "cells":  [{
+              "id": "子单元格ID，GUID类型",
+              "width": "100%",
+              "height": "100%",
+              "isHidden": false,
+              "rowIndex": "0",
+              "direction": "column",
+              
+              // 控件配置
+              "control": {
+                "id": "控件ID，比如：appGrid1、appForm1……，多个控件不允许重复",
+                "type": "Mysoft.Map6.Modeling.Controls.AppGrid",
+                "metadataId": "子控件的唯一ID，GUID类型",
+                "autoHeight": "1",
+              },
+            }],
+      }],
+    },
+  }

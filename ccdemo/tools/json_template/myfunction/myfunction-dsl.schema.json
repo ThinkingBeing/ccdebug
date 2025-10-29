@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MyFunction Schema",
+  "description": "MyFunction JSON 是对业务单元描述的JSON格式文件，主要包含业务单元的基本信息、操作和主页配置",
+  "type": "object",
+  "required": [
+    "metadataType",
+    "createdBy",
+    "createdOn",
+    "modifiedBy",
+    "modifiedOn",
+    "metadataStatus",
+    "functionGuid",
+    "functionName",
+    "hierarchyCode",
+    "parentHierarchyCode",
+    "level",
+    "isDisabled",
+    "functionCode",
+    "application",
+    "parentFunctionGuid",
+    "iconClass",
+    "iconColor",
+    "orderId",
+    "actions",
+    "homePages"
+  ],
+  "properties": {
+    "metadataType": {
+      "type": "string",
+      "description": "当前元数据类型",
+      "enum": ["MyFunction"]
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "创建人"
+    },
+    "createdOn": {
+      "type": "string",
+      "description": "创建时间，日期类型",
+      "format": "date-time"
+    },
+    "modifiedBy": {
+      "type": "string",
+      "description": "修改人"
+    },
+    "modifiedOn": {
+      "type": "string",
+      "description": "修改时间，日期类型",
+      "format": "date-time"
+    },
+    "metadataStatus": {
+      "type": "string",
+      "description": "状态，枚举类型",
+      "enum": ["Product", "Customize"]
+    },
+    "functionGuid": {
+      "type": "string",
+      "description": "业务单元唯一ID，GUID类型",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "functionName": {
+      "type": "string",
+      "description": "业务单元名称"
+    },
+    "hierarchyCode": {
+      "type": "string",
+      "description": "层级编码"
+    },
+    "parentHierarchyCode": {
+      "type": "string",
+      "description": "父层级编码"
+    },
+    "level": {
+      "type": "integer",
+      "description": "层级级别"
+    },
+    "isDisabled": {
+      "type": "boolean",
+      "description": "是否禁用"
+    },
+    "functionCode": {
+      "type": "string",
+      "description": "业务单元编码"
+    },
+    "application": {
+      "type": "string",
+      "description": "应用（子系统）编码"
+    },
+    "parentFunctionGuid": {
+      "type": ["string", "null"],
+      "description": "父业务单元GUID",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "iconClass": {
+      "type": "string",
+      "description": "图标样式类"
+    },
+    "iconColor": {
+      "type": "string",
+      "description": "图标颜色"
+    },
+    "orderId": {
+      "type": "string",
+      "description": "排序ID"
+    },
+    "actions": {
+      "type": ["array", "null"],
+      "description": "业务单元操作列表",
+      "items": {
+        "$ref": "#/definitions/action"
+      }
+    },
+    "homePages": {
+      "type": ["array", "null"],
+      "description": "主页配置列表",
+      "items": {
+        "$ref": "#/definitions/homePage"
+      }
+    }
+  },
+  "definitions": {
+    "action": {
+      "type": "object",
+      "required": [
+        "actionCode",
+        "actionName",
+        "comments",
+        "createdOn",
+        "modifiedOn",
+        "actionType"
+      ],
+      "properties": {
+        "actionCode": {
+          "type": "string",
+          "description": "操作编码"
+        },
+        "actionName": {
+          "type": "string",
+          "description": "操作名称"
+        },
+        "comments": {
+          "type": "string",
+          "description": "操作描述"
+        },
+        "createdOn": {
+          "type": "string",
+          "description": "创建时间",
+          "format": "date-time"
+        },
+        "modifiedOn": {
+          "type": "string",
+          "description": "修改时间",
+          "format": "date-time"
+        },
+        "actionType": {
+          "type": "integer",
+          "description": "操作类型"
+        }
+      }
+    },
+    "homePage": {
+      "type": "object",
+      "required": [
+        "id",
+        "pageName",
+        "openMode",
+        "pageId",
+        "iconClass",
+        "params"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "主页配置ID",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "pageName": {
+          "type": "string",
+          "description": "页面名称"
+        },
+        "openMode": {
+          "type": "integer",
+          "description": "打开方式",
+          "enum": [0, 1]
+        },
+        "pageId": {
+          "type": "string",
+          "description": "页面ID",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "iconClass": {
+          "type": "string",
+          "description": "图标样式类"
+        },
+        "params": {
+          "type": "array",
+          "description": "参数列表",
+          "items": {
+            "$ref": "#/definitions/param"
+          }
+        }
+      }
+    },
+    "param": {
+      "type": "object",
+      "required": [
+        "type",
+        "key",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "参数类型",
+          "enum": ["text"]
+        },
+        "key": {
+          "type": "string",
+          "description": "参数键"
+        },
+        "value": {
+          "type": "string",
+          "description": "参数值"
+        }
+      }
+    }
+  }
+}

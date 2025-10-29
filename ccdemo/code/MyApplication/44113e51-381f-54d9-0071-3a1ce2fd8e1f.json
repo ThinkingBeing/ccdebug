@@ -1,0 +1,19 @@
+{
+  "applicationGuid": "44113e51-381f-54d9-0071-3a1ce2fd8e1f",
+  "applicationName": "图书管理系统",
+  "application": "x_0338",
+  "serviceType": "Service",
+  "hierarchyCode": "01.02",
+  "level": "1",
+  "isLastStage": true,
+  "isDisabled": false,
+  "version": "2.0.0.15",
+  "shortName": "tsglxt",
+  "supportDatabases": "mySql,dm",
+  "isPublic": false,
+  "invisible": false,
+  "isThirdApp": false,
+  "enableFreshLayout": true,
+  "myFunctions": [],
+  "pluginFunctions": []
+}            

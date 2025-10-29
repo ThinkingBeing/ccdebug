@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MyApplication Schema",
+  "description": "MyApplication JSON 是对应用程序描述的JSON格式文件，主要包含应用程序的基本信息",
+  "type": "object",
+  "required": [
+    "metadataType",
+    "createdBy",
+    "createdOn",
+    "modifiedBy",
+    "modifiedOn",
+    "applicationGuid",
+    "applicationName",
+    "application",
+    "shortName",
+    "description"
+  ],
+  "properties": {
+    "metadataType": {
+      "type": "string",
+      "description": "当前元数据类型",
+      "enum": ["MyApplication"]
+    },
+    "createdBy": {
+      "type": "string",
+      "description": "创建人"
+    },
+    "createdOn": {
+      "type": "string",
+      "description": "创建时间，日期类型",
+      "format": "date-time"
+    },
+    "modifiedBy": {
+      "type": "string",
+      "description": "修改人"
+    },
+    "modifiedOn": {
+      "type": "string",
+      "description": "修改时间",
+      "format": "date-time"
+    },
+    "applicationGuid": {
+      "type": "string",
+      "description": "应用GUID，唯一标识",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "applicationName": {
+      "type": "string",
+      "description": "应用名称"
+    },
+    "application": {
+      "type": "string",
+      "description": "应用编码，取自 <MyApplication> 元数据的 application 属性",
+      "pattern": "^(x_\\d+|\\d+)$"
+    },
+    "shortName": {
+      "type": "string",
+      "description": "应用简称"
+    },
+    "description": {
+      "type": "string",
+      "description": "应用描述信息"
+    }
+  }
+}

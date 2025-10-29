@@ -1,0 +1,114 @@
+{
+    "myFunction": {
+        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "xmlns:xsd": "http://www.w3.org/2001/XMLSchema",
+        "metadataversion": "3.0",
+        "createdBy": "创建人",
+        "createdOn": "2025-09-22T10:25:33.4815536+08:00",
+        "modifiedBy": "修改人",
+        "modifiedOn": "2025-09-22T11:17:17.8521089+08:00",
+        "metadataStatus": "Customize",
+        "functionGuid": "08ddf97f-4ece-49b9-8560-a5c8c5ab22c1",
+        "functionName": "车辆管理",
+        "hierarchyCode": "x_001113.x_00111301",
+        "parentHierarchyCode": "x_001113",
+        "level": 1,
+        "isLastStage": false,
+        "functionIcon": "",
+        "isDisabled": false,
+        "IsVirual": false,
+        "functionCode": "x_00111301",
+        "application": "0011",
+        "parentFunctionGuid": "08ddf97f-15fa-49b8-8f7d-4a36d361dfb5",
+        "isDummy": false,
+        "isIncrement": false,
+        "functionType": "功能",
+        "useScope": 0,
+        "primaryObjectTypeCode": 0,
+        "iconClass": "mp-icon-application",
+        "iconColor": "#4598F0",
+        "status": 0,
+        "scope": "-1",
+        "orderId": "25949",
+        "homePageCategory": 0,
+        "homePageType": 0,
+        "openMode": 0,
+        "metaDataExtendType": "None",
+        "actions": {
+            "action": [
+                {
+                    "actionCode": "x_00",
+                    "actionName": "查询",
+                    "comments": "查询",
+                    "createdOn": "0001-01-01T00:00:00.000Z",
+                    "modifiedOn": "0001-01-01T00:00:00.000Z",
+                    "actionType": 1,
+                    "metadataStatus": "Customize",
+                    "instanceTemplateId": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                    "actionCode": "x_01",
+                    "actionName": "新建",
+                    "comments": "新建",
+                    "createdOn": "0001-01-01T00:00:00.000Z",
+                    "modifiedOn": "0001-01-01T00:00:00.000Z",
+                    "actionType": 3,
+                    "metadataStatus": "Customize",
+                    "instanceTemplateId": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                    "actionCode": "x_02",
+                    "actionName": "修改",
+                    "comments": "修改",
+                    "createdOn": "0001-01-01T00:00:00.000Z",
+                    "modifiedOn": "0001-01-01T00:00:00.000Z",
+                    "actionType": 4,
+                    "metadataStatus": "Customize",
+                    "instanceTemplateId": "00000000-0000-0000-0000-000000000000"
+                },
+                {
+                    "actionCode": "x_03",
+                    "actionName": "删除",
+                    "comments": "删除",
+                    "createdOn": "0001-01-01T00:00:00.000Z",
+                    "modifiedOn": "0001-01-01T00:00:00.000Z",
+                    "actionType": 3,
+                    "metadataStatus": "Customize",
+                    "instanceTemplateId": "00000000-0000-0000-0000-000000000000"
+                }
+            ]
+        },
+        "actionGroups": null,
+        "rights": null,
+        "apiRightRules": null,
+        "tabGroups": null,
+        "homePages": {
+            "homePage": {
+                "id": "08ddf97f-4ece-4b3c-8e84-fcfae7c2a5dc",
+                "pageName": "车辆管理",
+                "pageCategory": "0",
+                "pageType": "0",
+                "openMode": "0",
+                "pageId": "3159bf02-430e-e811-8b8c-94c69104026b",
+                "source": "0",
+                "instanceTemplateId": "00000000-0000-0000-0000-000000000000",
+                "iconClass": "mp-icon-chart-proportion",
+                "metadataStatus": "Customize",
+                "params": {
+                    "param": [
+                        {
+                            "type": "text",
+                            "key": "openMode",
+                            "value": "add"
+                        },
+                        {
+                            "type": "text",
+                            "key": "from",
+                            "value": "wx"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}

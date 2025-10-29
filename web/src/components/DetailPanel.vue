@@ -2,6 +2,15 @@
   <div class="detail-panel">
     <div class="detail-header">
       <h3>步骤详情</h3>
+      <!-- 调试按钮 - 只在Agent_Message和Tool_Use节点显示 -->
+          <div v-if="shouldShowDebugButton(selectedStep)" class="debug-button-container">
+            <a-button type="primary" size="small" @click="openDebugPage">
+              <template #icon>
+                <icon-bug />
+              </template>
+              调试
+            </a-button>
+          </div>
     </div>
 
     <div class="detail-content">
@@ -25,15 +34,7 @@
             <span class="value">{{ selectedStep.tool_name }}</span>
           </div>
           
-          <!-- 调试按钮 - 只在Agent_Message和Tool_Use节点显示 -->
-          <div v-if="shouldShowDebugButton(selectedStep)" class="debug-button-container">
-            <a-button type="primary" size="small" @click="openDebugPage">
-              <template #icon>
-                <icon-bug />
-              </template>
-              调试
-            </a-button>
-          </div>
+          
         </a-card>
 
           <!-- 元数据 -->
@@ -412,9 +413,6 @@ const formatMetadataValue = (value: any): string => {
 }
 
 .debug-button-container {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--color-border-2);
   text-align: right;
 }
 

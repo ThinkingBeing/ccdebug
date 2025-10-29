@@ -1,0 +1,310 @@
+{
+  "metadataType": "AppGrid",
+  "createdBy": "ModelingAI",
+  "createdOn": "2025-10-23T08:41:52.551Z",
+  "modifiedBy": "ModelingAI",
+  "modifiedOn": "2025-10-23T08:41:52.551Z",
+  "metadataStatus": "Customize",
+  "gridId": "5cdc30c0-9a51-4c2a-9e6c-5abf7b64f47f",
+  "name": "图书信息列表",
+  "application": "x_0338",
+  "functionPageId": "f8d44297-ac4f-462b-a187-16ab863495d5",
+  "description": "图书信息列表控件，支持查询、新增、编辑、删除功能",
+  "layout_pageSize": 20,
+  "layout_viewListDisplayType": "List",
+  "layout_entityName": "x图书信息274qq2",
+  "layout_entityId": "cb9cc832-46a7-4a24-92e3-2231f2f9745b",
+  "layout_projectFilter": false,
+  "toolbar": {
+    "batchButtons": [],
+    "globalButtons": [
+      {
+        "itemId": "22dc873c-0fda-4d4c-beb8-55a2ef3060b5",
+        "title": "新增",
+        "type": "button",
+        "id": "button_add",
+        "isMenuButton": false,
+        "isHidden": false,
+        "isHighlight": true,
+        "isDisabled": false,
+        "events": [],
+        "behavior": {
+          "itemId": "596cd486-50ae-41c4-8e8e-f389ae1563a4",
+          "target": "dialog",
+          "targetDisplayType": "fixedWidth",
+          "type": "page",
+          "url": "/std/x_03381001/182b519c-5794-46af-9686-5b6861d12cf4",
+          "id": "182b519c-5794-46af-9686-5b6861d12cf4",
+          "options": [
+            {
+              "key": "width",
+              "value": "860"
+            },
+            {
+              "key": "height",
+              "value": "600"
+            }
+          ],
+          "params": [
+            {
+              "type": "text",
+              "key": "mode",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      {
+        "itemId": "90f820cd-f0e7-4e09-bdf4-1b07b9d73572",
+        "title": "更多",
+        "type": "menu",
+        "id": "menu_more",
+        "isMenuButton": false,
+        "isHidden": false,
+        "isDisabled": false,
+        "items": [
+          {
+            "itemId": "8300000a-fd13-4032-9e6f-0fe158c62aa3",
+            "title": "打印",
+            "type": "button",
+            "id": "button_print",
+            "isMenuButton": true,
+            "isHidden": false,
+            "isDisabled": false,
+            "events": [
+              {
+                "name": "onclick",
+                "functionName": "Mysoft.Map6.UI.Template.Grid.print(e)",
+                "enabled": true
+              }
+            ],
+            "behavior": null
+          },
+          {
+            "itemId": "43fd6b6a-ff52-4d64-92c3-c53286537bf4",
+            "title": "导出",
+            "type": "button",
+            "id": "button_export",
+            "isMenuButton": true,
+            "isHidden": false,
+            "isDisabled": false,
+            "events": [
+              {
+                "name": "onclick",
+                "functionName": "Mysoft.Map6.UI.Template.Grid.exportExcel(e)",
+                "enabled": true
+              }
+            ],
+            "behavior": null
+          }
+        ]
+      }
+    ],
+    "rowButtons": [
+      {
+        "itemId": "d64ee634-e60f-43af-9fed-8f9cec9def43",
+        "title": "编辑",
+        "type": "button",
+        "id": "button_edit",
+        "isMenuButton": false,
+        "isHidden": false,
+        "isDisabled": false,
+        "events": [],
+        "behavior": {
+          "itemId": "4c3967c7-90e3-4b80-8533-e2f4342c1157",
+          "target": "dialog",
+          "targetDisplayType": "fixedWidth",
+          "type": "page",
+          "url": "/std/x_03381001/182b519c-5794-46af-9686-5b6861d12cf4",
+          "id": "182b519c-5794-46af-9686-5b6861d12cf4",
+          "options": [
+            {
+              "key": "width",
+              "value": "860"
+            },
+            {
+              "key": "height",
+              "value": "600"
+            }
+          ],
+          "params": [
+            {
+              "type": "data",
+              "key": "mode",
+              "value": "2"
+            },
+            {
+              "type": "data",
+              "key": "oid",
+              "value": "图书信息GUID"
+            }
+          ]
+        }
+      },
+      {
+        "itemId": "b083f142-29ec-46bd-864b-0f85cc5b4bd4",
+        "title": "删除",
+        "type": "button",
+        "id": "button_delete",
+        "isMenuButton": false,
+        "isHidden": false,
+        "isDisabled": false,
+        "events": [
+          {
+            "name": "onclick",
+            "functionName": "Mysoft.Map6.UI.Template.Grid.deleteCurrentRow()",
+            "enabled": true
+          }
+        ],
+        "behavior": null
+      }
+    ]
+  },
+  "filter": {
+    "filterId": "07605912-03e9-4fbd-a8a9-f8ead261c007",
+    "labelWidth": "91",
+    "conditions": [
+      {
+        "id": "7b4016e2-40ad-4732-b3b0-65d0de66dece",
+        "searchType": null,
+        "name": "Search",
+        "layout": "horizontal",
+        "title": "Search",
+        "search": {
+          "field": "Search",
+          "fields": [
+            {
+              "field": "x_bookName",
+              "title": "书名"
+            },
+            {
+              "field": "x_author",
+              "title": "作者"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "views": [
+    {
+      "viewId": "f7af97fe-ea9e-4e3b-8a2f-aaf4db950d44",
+      "name": "全部",
+      "isDefault": true,
+      "isHidden": false,
+      "entityId": "cb9cc832-46a7-4a24-92e3-2231f2f9745b",
+      "dataSource": {
+        "keyName": "图书信息GUID",
+        "entity": "x图书信息274qq2",
+        "diagrams": [
+          {
+            "id": "cb9cc832-46a7-4a24-92e3-2231f2f9745b",
+            "name": "x图书信息274qq2",
+            "primaryField": "图书信息GUID",
+            "type": 0,
+            "isMaster": true,
+            "joinType": 0,
+            "diagramRelation": null,
+            "logicFormula": "",
+            "conditionType": 0,
+            "conditions": []
+          }
+        ]
+      },
+      "columns": [
+        {
+          "id": "6464d706-af36-4117-918c-a06054f29b6c",
+          "name": "x_isbn",
+          "entityName": "x图书信息274qq2",
+          "field": "x_isbn",
+          "isRepeat": false,
+          "title": "ISBN编号",
+          "width": 180,
+          "allowEdit": false,
+          "isHidden": false,
+          "dataType": "text",
+          "align": "left",
+          "dataSourceType": "Field",
+          "allowSort": true,
+          "isSummaryColumn": false,
+          "isBold": false,
+          "tips": "",
+          "textBox": {
+            "id": "c2012c16-6ada-4136-9ea1-5e762cb43b49",
+            "field": "x_isbn"
+          }
+        },
+        {
+          "id": "217e709b-a73e-46f6-b31a-db19e56068fe",
+          "name": "x_bookName",
+          "entityName": "x图书信息274qq2",
+          "field": "x_bookName",
+          "isRepeat": false,
+          "title": "书名",
+          "width": 200,
+          "allowEdit": false,
+          "isHidden": false,
+          "dataType": "text",
+          "align": "left",
+          "dataSourceType": "Field",
+          "allowSort": true,
+          "isSummaryColumn": false,
+          "isBold": false,
+          "tips": "",
+          "textBox": {
+            "id": "2bf475b5-6713-4067-921c-a354793efb14",
+            "field": "x_bookName"
+          }
+        },
+        {
+          "id": "bc15604d-8b03-481b-8d0b-a33d1891b8a2",
+          "name": "x_author",
+          "entityName": "x图书信息274qq2",
+          "field": "x_author",
+          "isRepeat": false,
+          "title": "作者",
+          "width": 150,
+          "allowEdit": false,
+          "isHidden": false,
+          "dataType": "text",
+          "align": "left",
+          "dataSourceType": "Field",
+          "allowSort": true,
+          "isSummaryColumn": false,
+          "isBold": false,
+          "tips": "",
+          "textBox": {
+            "id": "64f7091e-8cde-4914-bb14-352f503eede3",
+            "field": "x_author"
+          }
+        },
+        {
+          "id": "904de3be-5a7d-4c4f-b955-bbf14e0b3cb9",
+          "name": "x_publisher",
+          "entityName": "x图书信息274qq2",
+          "field": "x_publisher",
+          "isRepeat": false,
+          "title": "出版社",
+          "width": 180,
+          "allowEdit": false,
+          "isHidden": false,
+          "dataType": "text",
+          "align": "left",
+          "dataSourceType": "Field",
+          "allowSort": true,
+          "isSummaryColumn": false,
+          "isBold": false,
+          "tips": "",
+          "textBox": {
+            "id": "74bff133-a773-43dc-980e-bbbe457b7b05",
+            "field": "x_publisher"
+          }
+        }
+      ]
+    }
+  ],
+  "rule": {
+    "groups": [],
+    "configs": []
+  }
+}

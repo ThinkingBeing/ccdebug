@@ -1,0 +1,65 @@
+{
+  "metadataType": "MyFunction",
+  "createdBy": "ModelingAI",
+  "createdOn": "2025-10-23T08:40:46.628Z",
+  "modifiedBy": "ModelingAI",
+  "modifiedOn": "2025-10-23T08:40:46.628Z",
+  "metadataStatus": "Customize",
+  "status": 0,
+  "application": "x_0338",
+  "functionGuid": "47aaa7f6-55ea-485d-82ad-3acee93988ec",
+  "parentFunctionGuid": "034eb5d0-a012-4709-8cab-771a73be7221",
+  "functionCode": "x_03381001",
+  "functionName": "图书信息",
+  "hierarchyCode": "x_033810.x_03381001",
+  "parentHierarchyCode": "x_033810",
+  "level": 1,
+  "isDisabled": false,
+  "iconClass": "",
+  "iconColor": "",
+  "orderId": "0",
+  "actions": [
+    {
+      "actionCode": "x_00",
+      "actionName": "查询",
+      "comments": "查询图书信息",
+      "createdOn": "0001-01-01T00:00:00.000Z",
+      "modifiedOn": "0001-01-01T00:00:00.000Z",
+      "actionType": 1
+    },
+    {
+      "actionCode": "x_01",
+      "actionName": "新增",
+      "comments": "新增图书信息",
+      "createdOn": "0001-01-01T00:00:00.000Z",
+      "modifiedOn": "0001-01-01T00:00:00.000Z",
+      "actionType": 3
+    },
+    {
+      "actionCode": "x_02",
+      "actionName": "修改",
+      "comments": "修改图书信息",
+      "createdOn": "0001-01-01T00:00:00.000Z",
+      "modifiedOn": "0001-01-01T00:00:00.000Z",
+      "actionType": 4
+    },
+    {
+      "actionCode": "x_03",
+      "actionName": "删除",
+      "comments": "删除图书信息",
+      "createdOn": "0001-01-01T00:00:00.000Z",
+      "modifiedOn": "0001-01-01T00:00:00.000Z",
+      "actionType": 3
+    }
+  ],
+  "homePages": [
+    {
+      "id": "92a64154-a71c-4f47-830a-7ce25fb8d98a",
+      "pageName": "图书信息",
+      "openMode": 0,
+      "pageId": "f8d44297-ac4f-462b-a187-16ab863495d5",
+      "iconClass": "",
+      "params": []
+    }
+  ]
+}
