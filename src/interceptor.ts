@@ -541,6 +541,7 @@ export class ClaudeTrafficLogger {
 			// 通过LogFileManager解析源日志目录
 			const sourceLogDir = logFileManager.resolveLogDirectory(currentProjectPath);
 
+
 			// 构建源文件路径（假设源文件名为sessionId.jsonl）
 			const sourceFile = path.join(sourceLogDir, `${sessionId}.jsonl`);
 
@@ -556,6 +557,32 @@ export class ClaudeTrafficLogger {
 			// 拷贝文件
 			fs.copyFileSync(sourceFile, this.ccLogFile);
 			console.log(`CC日志文件已从 ${sourceFile} 拷贝到 ${this.ccLogFile}`);
+
+			// 读取sourceLogDir目录下所有agent_*.jsonl文件，读取第一条记录的sessionId，找到与sessionId变量值相同的文件，拷贝到ccLogDir目录
+			const files = fs.readdirSync(sourceLogDir).filter(file => file.startsWith('agent-') && file.endsWith('.jsonl'));
+
+			for (const file of files) {
+				const filePath = path.join(sourceLogDir, file);
+				const content = fs.readFileSync(filePath, 'utf-8');
+				const lines = content.split('\n').filter(line => line.trim());
+
+				if (lines.length > 0) {
+					try {
+						const firstRecord = JSON.parse(lines[0]);
+						const recordSessionId = firstRecord?.sessionId;
+						if (recordSessionId === sessionId) {
+							// 构建目标文件路径
+							const ccAgentLogFile = path.join(this.ccLogDir, file);
+							// 拷贝文件
+							fs.copyFileSync(filePath, ccAgentLogFile);
+							console.log(`SubAgent的CC日志文件已从 ${filePath} 拷贝到 ${ccAgentLogFile}`);
+						}
+					} catch (parseError) {
+						// 静默处理解析错误，继续下一个文件
+						continue;
+					}
+				}
+			}
 
 		} catch (error) {
 			console.log(`拷贝CC日志文件时出错: ${error}`);

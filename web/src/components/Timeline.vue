@@ -123,6 +123,21 @@ import { Tooltip as ATooltip } from '@arco-design/web-vue'
 import { useTimelineStore } from '../stores/timeline'
 import type { ConversationStep } from '../types'
 
+// 统一前端调试日志开关：通过URL参数 debug=1 或 localStorage.CCDEBUG_DEBUG=1 开启
+const DEBUG_LOGS = (() => {
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URL(window.location.href).searchParams
+      return params.get('debug') === '1' || (window.localStorage?.getItem('CCDEBUG_DEBUG') === '1')
+    } catch (_) {
+      return false
+    }
+  }
+  return false
+})()
+const dlog = (...args: any[]) => { if (DEBUG_LOGS) console.log(...args) }
+const dwarn = (...args: any[]) => { if (DEBUG_LOGS) console.warn(...args) }
+
 // 在Vue 3 script setup中注册组件
 defineOptions({
   components: {
@@ -144,14 +159,14 @@ const processedSteps = computed(() => {
   if (!currentConversation.value?.steps) return []
   
   const steps = currentConversation.value.steps
-  console.log('🔍 processedSteps - 原始步骤数量:', steps.length)
+  dlog('🔍 processedSteps - 原始步骤数量:', steps.length)
   
   const toolUseMap = new Map<string, ConversationStep & { toolResult?: ConversationStep }>()
   
   // 第一遍：收集所有tool_call节点并创建扩展对象
   steps.forEach(step => {
     if (step.type === 'tool_call') {
-      console.log('🔧 找到tool_call步骤:', {
+      dlog('🔧 找到tool_call步骤:', {
         id: step.id,
         tool_use_id: step.tool_use_id,
         tool_name: step.tool_name
@@ -161,18 +176,18 @@ const processedSteps = computed(() => {
         toolUseMap.set(step.tool_use_id, { ...step })
       } else {
         // 如果没有tool_use_id，使用步骤id作为fallback
-        console.warn('⚠️ tool_call步骤缺少tool_use_id，使用步骤id作为fallback:', step.id)
+        dwarn('⚠️ tool_call步骤缺少tool_use_id，使用步骤id作为fallback:', step.id)
         toolUseMap.set(step.id, { ...step })
       }
     }
   })
   
-  console.log('🗺️ toolUseMap大小:', toolUseMap.size)
+  dlog('🗺️ toolUseMap大小:', toolUseMap.size)
   
   // 第二遍：将tool_result关联到对应的tool_call
   steps.forEach(step => {
     if (step.type === 'tool_result') {
-      console.log('📊 找到tool_result步骤:', {
+      dlog('📊 找到tool_result步骤:', {
         id: step.id,
         tool_use_id: step.tool_use_id
       })
@@ -192,7 +207,7 @@ const processedSteps = computed(() => {
             const mapKey = prevStep.tool_use_id || prevStep.id
             toolUseStep = toolUseMap.get(mapKey)
             if (toolUseStep) {
-              console.log('🔗 通过位置关系关联tool_result到tool_call:', {
+              dlog('🔗 通过位置关系关联tool_result到tool_call:', {
                 toolResultId: step.id,
                 toolCallId: prevStep.id
               })
@@ -204,9 +219,9 @@ const processedSteps = computed(() => {
       
       if (toolUseStep) {
         toolUseStep.toolResult = step
-        console.log('✅ 成功关联tool_result到tool_call')
+        dlog('✅ 成功关联tool_result到tool_call')
       } else {
-        console.warn('⚠️ 无法找到对应的tool_call步骤')
+        dwarn('⚠️ 无法找到对应的tool_call步骤')
       }
     }
   })
@@ -220,24 +235,24 @@ const processedSteps = computed(() => {
       const enhancedStep = toolUseMap.get(mapKey)
       if (enhancedStep) {
         processedStepsList.push(enhancedStep)
-        console.log('📝 添加tool_call步骤:', {
+        dlog('📝 添加tool_call步骤:', {
           id: enhancedStep.id,
           hasToolResult: !!enhancedStep.toolResult
         })
       } else {
         processedStepsList.push(step)
-        console.log('📝 添加原始tool_call步骤:', step.id)
+        dlog('📝 添加原始tool_call步骤:', step.id)
       }
     } else if (step.type === 'tool_result') {
       // tool_result步骤已经关联到tool_call，不单独显示
-      console.log('🚫 跳过tool_result步骤，应作为tool_call的子节点:', step.id)
+      dlog('🚫 跳过tool_result步骤，应作为tool_call的子节点:', step.id)
     } else {
       // 其他类型的步骤直接添加
       processedStepsList.push(step)
     }
   })
   
-  console.log('📋 最终处理后的步骤数量:', processedStepsList.length)
+  dlog('📋 最终处理后的步骤数量:', processedStepsList.length)
   return processedStepsList
 })
 
@@ -252,13 +267,13 @@ const selectStep = (step: ConversationStep) => {
 // 展开/收起功能
 // 在模板中调用getDisplayContent时也添加调试信息
   const toggleExpanded = (stepId: string) => {
-    console.log('🔄 toggleExpanded called:', stepId)
+    dlog('🔄 toggleExpanded called:', stepId)
     if (expandedSteps.value.has(stepId)) {
       expandedSteps.value.delete(stepId)
-      console.log('📉 Step collapsed:', stepId)
+      dlog('📉 Step collapsed:', stepId)
     } else {
       expandedSteps.value.add(stepId)
-      console.log('📈 Step expanded:', stepId)
+      dlog('📈 Step expanded:', stepId)
     }
   }
 
@@ -485,7 +500,7 @@ const truncateContent = (content: string, maxLength: number = 500) => {
 // 获取Tool Result节点的显示内容
 const getToolResultContent = (step: ConversationStep, isExpanded: boolean = false) => {
   // 调试信息：记录函数调用
-  console.log('🔍 getToolResultContent called:', {
+  dlog('🔍 getToolResultContent called:', {
     stepId: step.id,
     stepType: step.type,
     isExpanded,
@@ -497,7 +512,7 @@ const getToolResultContent = (step: ConversationStep, isExpanded: boolean = fals
   
   // 如果这是一个tool_call步骤且有关联的toolResult，使用toolResult的内容
   if (step.type === 'tool_call' && step.toolResult) {
-    console.log('🎯 使用关联的toolResult内容')
+    dlog('🎯 使用关联的toolResult内容')
     
     // 直接获取toolUseResult并序列化为JSON字符串
     const toolResultRawLogEntry = step.toolResult.rawLogEntry
@@ -505,25 +520,25 @@ const getToolResultContent = (step: ConversationStep, isExpanded: boolean = fals
       try {
         const content = JSON.stringify(toolResultRawLogEntry.toolUseResult, null, 2)
         if (!isExpanded && content.length > 500) {
-          console.log('📏 toolUseResult JSON truncated (collapsed):', content.length)
+          dlog('📏 toolUseResult JSON truncated (collapsed):', content.length)
           // 直接截断JSON字符串
           return content.substring(0, 500) + '...'
         }
-        console.log('📄 toolUseResult JSON full content (expanded):', content.length)
+        dlog('📄 toolUseResult JSON full content (expanded):', content.length)
         return content
       } catch (error) {
-        console.warn('toolUseResult JSON序列化失败:', error)
+        dwarn('toolUseResult JSON序列化失败:', error)
         return ''
       }
     }
     
     // 如果取不到toolUseResult则返回空
-    console.log('⚠️ 未找到toolUseResult，返回空内容')
+    dlog('⚠️ 未找到toolUseResult，返回空内容')
     return ''
   }
   
   // 如果这不是tool_call步骤或没有关联的toolResult，返回空内容
-  console.warn('⚠️ 无法提取Tool Result内容，使用兜底显示')
+  dlog('⚠️ 无法提取Tool Result内容，使用兜底显示')
   return 'No result content available'
 }
 
@@ -826,7 +841,10 @@ defineExpose({
 .card-content .result-content pre {
   margin: 0;
   white-space: pre-wrap;
-  word-wrap: break-word;
+  /* 更强的断词与换行，避免长串导致横向溢出 */
+  word-wrap: break-word; /* 兼容旧属性 */
+  overflow-wrap: anywhere;
+  word-break: break-all;
   line-height: 1.5;
 }
 

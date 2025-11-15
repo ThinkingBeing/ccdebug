@@ -16,6 +16,6 @@ npx tsx ../src/cli.ts --serve --port 3007
 
 cat 3.图书管理应用.md | npx tsx ../src/cli.ts --run-with -p "请按要求工作" --output-format stream-json --verbose
 
-cat docs/test.md | npx tsx ../src/cli.ts --run-with -p "/DevSolo 请按要求工作" --output-format stream-json --verbose
+cat docs/test.md | npx tsx ../src/cli.ts --run-with -p --output-format stream-json --verbose
 
 # 主题：如何设计Agent

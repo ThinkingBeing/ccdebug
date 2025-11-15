@@ -145,6 +145,18 @@ import { IconRefresh, IconFilter } from "@arco-design/web-vue/es/icon";
 import { ConversationStep } from "../types/index";
 import { getNodeColor, getNodeLightColor } from "../utils/colors";
 
+// 统一前端调试开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
+const DEBUG_LOGS = (() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('debug') === '1' || window.localStorage.getItem('CCDEBUG_DEBUG') === '1';
+  } catch {
+    return false;
+  }
+})();
+const dlog = (...args: any[]) => { if (DEBUG_LOGS) console.log(...args); };
+const dwarn = (...args: any[]) => { if (DEBUG_LOGS) console.warn(...args); };
+
 const timelineStore = useTimelineStore();
 
 // 计算属性
@@ -194,7 +206,7 @@ const filteredSteps = computed(() => {
 watch(
   currentFileId,
   (newFileId) => {
-    console.log("🔍 调试测试: currentFileId变化", {
+    dlog("🔍 调试测试: currentFileId变化", {
       newFileId,
       oldSelectedFileId: selectedFileId.value,
     });
@@ -205,7 +217,7 @@ watch(
 
 // 事件处理
 const handleFileChange = (fileId: string) => {
-  console.log("🔍 调试测试: 文件切换", {
+  dlog("🔍 调试测试: 文件切换", {
     fileId,
     currentFileId: currentFileId.value,
   });
@@ -216,7 +228,7 @@ const handleFileChange = (fileId: string) => {
 };
 
 const handleRefresh = () => {
-  console.log("🔄 调试测试: 刷新操作");
+  dlog("🔄 调试测试: 刷新操作");
   timelineStore.refreshFiles();
 };
 

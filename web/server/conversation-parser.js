@@ -5,6 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 // import { ConversationData, ConversationStep } from '../src/types/index.js';
+// 统一调试日志开关：设置环境变量 CCDEBUG_DEBUG=1 时才输出详细日志
+const DEBUG_LOGS = process.env.CCDEBUG_DEBUG === '1';
+const dlog = (...args) => { if (DEBUG_LOGS)
+    console.log(...args); };
 class ConversationParser {
     constructor() {
         this.logDir = '';
@@ -31,7 +35,7 @@ class ConversationParser {
             return null;
         }
         const projectId = path.basename(this.logDir);
-        console.log('调试: projectId =', projectId);
+        dlog('调试: projectId =', projectId);
         // 将项目ID转换回路径格式
         // 例如：-Users-ligf-Code-claude-code-ccdebug-ccdemo -> /Users/ligf/Code/claude-code/ccdebug/ccdemo
         if (!projectId.startsWith('-')) {
@@ -39,7 +43,7 @@ class ConversationParser {
         }
         // 移除开头的连字符，然后将连字符替换为斜杠
         const pathWithoutLeadingDash = projectId.substring(1);
-        console.log('调试: pathWithoutLeadingDash =', pathWithoutLeadingDash);
+        dlog('调试: pathWithoutLeadingDash =', pathWithoutLeadingDash);
         // 特殊处理：claude-code 应该保持为 claude-code，而不是 claude/code
         // 直接硬编码处理这个特定的路径模式
         let reconstructedPath;
@@ -51,14 +55,14 @@ class ConversationParser {
             // 对于其他路径，使用通用的替换
             reconstructedPath = `/${pathWithoutLeadingDash.replace(/-/g, '/')}`;
         }
-        console.log('调试: 重构路径 =', reconstructedPath);
+        dlog('调试: 重构路径 =', reconstructedPath);
         // 检查路径是否存在
         if (fs.existsSync(reconstructedPath)) {
-            console.log('调试: 路径存在，返回:', reconstructedPath);
+            dlog('调试: 路径存在，返回:', reconstructedPath);
             return reconstructedPath;
         }
         else {
-            console.log('调试: 路径不存在:', reconstructedPath);
+            dlog('调试: 路径不存在:', reconstructedPath);
             return null;
         }
     }
@@ -77,10 +81,10 @@ class ConversationParser {
             const fileName = fileId.endsWith('.jsonl') ? fileId : `${fileId}.jsonl`;
             // 从日志目录加载文件
             const logFilePath = path.join(this.logDir, fileName);
-            console.log(`调试: 尝试从日志目录查找文件: ${logFilePath}`);
+            dlog(`调试: 尝试从日志目录查找文件: ${logFilePath}`);
             if (fs.existsSync(logFilePath)) {
                 filePath = logFilePath;
-                console.log(`调试: 在日志目录找到文件: ${filePath}`);
+                dlog(`调试: 在日志目录找到文件: ${filePath}`);
             }
             else {
                 throw new Error(`文件不存在: ${logFilePath}`);
@@ -149,7 +153,7 @@ class ConversationParser {
                 }
             }
             catch (error) {
-                console.log('解析日志行失败:', line, error);
+                console.warn('解析日志行失败:', line, error);
             }
         }
         // 保存最后一个对话
@@ -277,9 +281,9 @@ class ConversationParser {
         return 'assistant_message';
     }
     extractContent(logEntry) {
-        console.log('extractContent - 处理日志条目:', JSON.stringify(logEntry, null, 2));
+        dlog('extractContent - 处理日志条目:', JSON.stringify(logEntry, null, 2));
         const stepType = this.determineStepType(logEntry);
-        console.log('extractContent - 步骤类型:', stepType);
+        dlog('extractContent - 步骤类型:', stepType);
         // 根据节点类型分别处理
         switch (stepType) {
             case 'user_message':
@@ -301,24 +305,24 @@ class ConversationParser {
         }
     }
     extractUserMessageContent(logEntry) {
-        console.log('extractUserMessageContent - 处理用户消息');
+        dlog('extractUserMessageContent - 处理用户消息');
         // 优先检查 message.content（新格式）
         if (logEntry.message?.content && typeof logEntry.message.content === 'string') {
-            console.log('extractUserMessageContent - 提取用户消息内容:', logEntry.message.content);
+            dlog('extractUserMessageContent - 提取用户消息内容:', logEntry.message.content);
             return logEntry.message.content;
         }
         // 兼容旧格式：从 request.body.messages 中提取
         if (logEntry.request?.body?.messages && Array.isArray(logEntry.request.body.messages)) {
             const userMessage = logEntry.request.body.messages.find(msg => msg.role === 'user');
             if (userMessage?.content && typeof userMessage.content === 'string') {
-                console.log('extractUserMessageContent - 从request.body.messages提取用户消息内容:', userMessage.content);
+                dlog('extractUserMessageContent - 从request.body.messages提取用户消息内容:', userMessage.content);
                 return userMessage.content;
             }
         }
         return this.extractFallbackContent(logEntry);
     }
     extractAssistantMessageContent(logEntry) {
-        console.log('extractAssistantMessageContent - 处理助手消息');
+        dlog('extractAssistantMessageContent - 处理助手消息');
         // 检查 message.content 数组格式
         if (logEntry.message?.content && Array.isArray(logEntry.message.content)) {
             // 找到第一个 text 类型的内容对象
@@ -327,34 +331,56 @@ class ConversationParser {
                 // 如果 text 是数组，用换行符拼接
                 if (Array.isArray(textContent.text)) {
                     const result = textContent.text.join('\n');
-                    console.log('extractAssistantMessageContent - 提取assistant消息内容(数组):', result);
+                    dlog('extractAssistantMessageContent - 提取assistant消息内容(数组):', result);
                     return result;
                 }
                 // 如果 text 是字符串，直接返回
                 if (typeof textContent.text === 'string') {
-                    console.log('extractAssistantMessageContent - 提取assistant消息内容(字符串):', textContent.text);
+                    dlog('extractAssistantMessageContent - 提取assistant消息内容(字符串):', textContent.text);
                     return textContent.text;
                 }
             }
         }
         // 检查字符串格式的 message.content
         if (logEntry.message?.content && typeof logEntry.message.content === 'string') {
-            console.log('extractAssistantMessageContent - 提取assistant消息内容(直接字符串):', logEntry.message.content);
+            dlog('extractAssistantMessageContent - 提取assistant消息内容(直接字符串):', logEntry.message.content);
             return logEntry.message.content;
         }
         return this.extractFallbackContent(logEntry);
     }
     extractAssistantThinkingContent(logEntry) {
-        console.log('extractAssistantThinkingContent - 处理思考内容');
-        // 处理包含 thinking 标签的内容
+        dlog('extractAssistantThinkingContent - 处理思考内容');
+        // 优先处理标准数组格式：message.content 中包含 type=thinking 的内容块
+        if (logEntry.message?.content && Array.isArray(logEntry.message.content)) {
+            const thinkingItem = logEntry.message.content.find((item) => item?.type === 'thinking');
+            if (thinkingItem) {
+                // Anthropic/通用格式：字段可能是 thinking / text / content
+                const t = thinkingItem.thinking ?? thinkingItem.text ?? thinkingItem.content;
+                if (Array.isArray(t)) {
+                    const result = t.join('\n');
+                    dlog('extractAssistantThinkingContent - 提取thinking内容(数组):', result);
+                    return result;
+                }
+                if (typeof t === 'string') {
+                    dlog('extractAssistantThinkingContent - 提取thinking内容(字符串):', t);
+                    return t;
+                }
+                // 其它结构，序列化为字符串
+                const result = JSON.stringify(t);
+                dlog('extractAssistantThinkingContent - 提取thinking内容(对象):', result);
+                return result;
+            }
+        }
+        // 兼容旧格式：message.content 为字符串
         if (logEntry.message?.content && typeof logEntry.message.content === 'string') {
-            console.log('extractAssistantThinkingContent - 提取思考内容:', logEntry.message.content);
+            dlog('extractAssistantThinkingContent - 提取思考内容(直接字符串):', logEntry.message.content);
             return logEntry.message.content;
         }
+        // 找不到明确的thinking内容，回退到通用逻辑
         return this.extractFallbackContent(logEntry);
     }
     extractToolCallContent(logEntry) {
-        console.log('extractToolCallContent - 处理工具调用');
+        dlog('extractToolCallContent - 处理工具调用');
         // 处理 message.content 数组中的 tool_use 项
         if (logEntry.message?.content && Array.isArray(logEntry.message.content)) {
             const toolUseItems = logEntry.message.content.filter(item => item.type === 'tool_use');
@@ -366,7 +392,7 @@ class ConversationParser {
                         id: tool.id,
                         input: tool.input
                     }, null, 2);
-                    console.log('extractToolCallContent - 单个工具调用:', result);
+                    dlog('extractToolCallContent - 单个工具调用:', result);
                     return result;
                 }
                 else {
@@ -376,7 +402,7 @@ class ConversationParser {
                         input: tool.input
                     }));
                     const result = JSON.stringify(toolInfo, null, 2);
-                    console.log('extractToolCallContent - 多个工具调用:', result);
+                    dlog('extractToolCallContent - 多个工具调用:', result);
                     return result;
                 }
             }
@@ -387,28 +413,28 @@ class ConversationParser {
                 name: logEntry.tool_name,
                 input: logEntry.input
             }, null, 2);
-            console.log('extractToolCallContent - 旧格式工具调用:', result);
+            dlog('extractToolCallContent - 旧格式工具调用:', result);
             return result;
         }
         return this.extractFallbackContent(logEntry);
     }
     extractToolResultContent(logEntry) {
-        console.log('extractToolResultContent - 处理工具结果');
+        dlog('extractToolResultContent - 处理工具结果');
         // 优先使用 toolUseResult 中的原始内容
         if (logEntry.toolUseResult) {
             // 优先使用 file.content（文件内容）
             if (logEntry.toolUseResult.file?.content) {
-                console.log('extractToolResultContent - 提取toolUseResult.file.content:', logEntry.toolUseResult.file.content);
+                dlog('extractToolResultContent - 提取toolUseResult.file.content:', logEntry.toolUseResult.file.content);
                 return logEntry.toolUseResult.file.content;
             }
             // 其次使用 stdout
             if (logEntry.toolUseResult.stdout) {
-                console.log('extractToolResultContent - 提取toolUseResult.stdout:', logEntry.toolUseResult.stdout);
+                dlog('extractToolResultContent - 提取toolUseResult.stdout:', logEntry.toolUseResult.stdout);
                 return logEntry.toolUseResult.stdout;
             }
             // 最后使用 stderr
             if (logEntry.toolUseResult.stderr) {
-                console.log('extractToolResultContent - 提取toolUseResult.stderr:', logEntry.toolUseResult.stderr);
+                dlog('extractToolResultContent - 提取toolUseResult.stderr:', logEntry.toolUseResult.stderr);
                 return logEntry.toolUseResult.stderr;
             }
         }
@@ -419,12 +445,12 @@ class ConversationParser {
                 if (toolResultItems.length === 1) {
                     const result = toolResultItems[0];
                     if (typeof result.content === 'string') {
-                        console.log('extractToolResultContent - 提取tool_result内容(字符串):', result.content);
+                        dlog('extractToolResultContent - 提取tool_result内容(字符串):', result.content);
                         return result.content;
                     }
                     else if (Array.isArray(result.content)) {
                         const content = result.content.map(c => c.text || c).join('\n');
-                        console.log('extractToolResultContent - 提取tool_result内容(数组):', content);
+                        dlog('extractToolResultContent - 提取tool_result内容(数组):', content);
                         return content;
                     }
                     return JSON.stringify(result.content, null, 2);
@@ -439,30 +465,30 @@ class ConversationParser {
                         }
                         return JSON.stringify(item.content, null, 2);
                     });
-                    console.log('extractToolResultContent - 提取tool_result内容(多个):', contents.join('\n---\n'));
+                    dlog('extractToolResultContent - 提取tool_result内容(多个):', contents.join('\n---\n'));
                     return contents.join('\n---\n');
                 }
             }
         }
         // 处理旧格式的工具结果
         if (logEntry.content) {
-            console.log('extractToolResultContent - 旧格式工具结果:', logEntry.content);
+            dlog('extractToolResultContent - 旧格式工具结果:', logEntry.content);
             return typeof logEntry.content === 'string' ? logEntry.content : JSON.stringify(logEntry.content);
         }
         return this.extractFallbackContent(logEntry);
     }
     extractAgentChildContent(logEntry) {
-        console.log('extractAgentChildContent - 处理子代理内容');
+        dlog('extractAgentChildContent - 处理子代理内容');
         // 子代理内容处理逻辑与普通助手消息类似
         return this.extractAssistantMessageContent(logEntry);
     }
     extractAgentEndContent(logEntry) {
-        console.log('extractAgentEndContent - 处理代理结束');
+        dlog('extractAgentEndContent - 处理代理结束');
         // 代理结束通常包含最终回复
         return this.extractAssistantMessageContent(logEntry);
     }
     extractFallbackContent(logEntry) {
-        console.log('extractFallbackContent - 使用备用提取逻辑');
+        dlog('extractFallbackContent - 使用备用提取逻辑');
         // 通用内容提取逻辑
         if (logEntry.content) {
             return typeof logEntry.content === 'string' ? logEntry.content : JSON.stringify(logEntry.content);

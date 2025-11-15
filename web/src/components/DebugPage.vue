@@ -174,6 +174,18 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 
+// 统一前端调试开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
+const DEBUG_LOGS = (() => {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('debug') === '1' || window.localStorage.getItem('CCDEBUG_DEBUG') === '1'
+  } catch {
+    return false
+  }
+})()
+const dlog = (...args: any[]) => { if (DEBUG_LOGS) console.log(...args) }
+const dwarn = (...args: any[]) => { if (DEBUG_LOGS) console.warn(...args) }
+
 // 响应式数据
 const llmLogData = ref<any>(null)
 const fileId = ref<string>('')
@@ -573,7 +585,7 @@ async function loadLLMLog() {
           }
         }
       } catch (stepErr) {
-        console.warn('无法获取步骤信息，使用stepId作为messageId:', stepErr)
+        dwarn('无法获取步骤信息，使用stepId作为messageId:', stepErr)
       }
     }
 

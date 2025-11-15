@@ -9,6 +9,10 @@ const { LogFileManager } = require('./log-file-manager.js');
 const { ConversationParser } = require('./conversation-parser.js');
 // import { ApiResponse, FilesApiResponse, ProjectInfo, ConversationData } from '../src/types/index.js';
 
+// 统一调试日志开关：设置环境变量 CCDEBUG_DEBUG=1 时才输出详细日志
+const DEBUG_LOGS = process.env.CCDEBUG_DEBUG === '1';
+const dlog = (...args: any[]) => { if (DEBUG_LOGS) console.log(...args); };
+
 export interface WebServerConfig {
   projectDir: string;
   port: number;
@@ -40,7 +44,7 @@ export class WebServer {
       if (fs.existsSync(projectSettingsPath)) {
         const projectSettings = JSON.parse(fs.readFileSync(projectSettingsPath, 'utf-8'));
         if (projectSettings.env && projectSettings.env.ANTHROPIC_AUTH_TOKEN) {
-          console.log('从项目设置文件获取ANTHROPIC_AUTH_TOKEN');
+          dlog('从项目设置文件获取ANTHROPIC_AUTH_TOKEN');
           return projectSettings.env.ANTHROPIC_AUTH_TOKEN;
         }
       }
@@ -54,7 +58,7 @@ export class WebServer {
       if (fs.existsSync(globalSettingsPath)) {
         const globalSettings = JSON.parse(fs.readFileSync(globalSettingsPath, 'utf-8'));
         if (globalSettings.env && globalSettings.env.ANTHROPIC_AUTH_TOKEN) {
-          console.log('从全局设置文件获取ANTHROPIC_AUTH_TOKEN');
+          dlog('从全局设置文件获取ANTHROPIC_AUTH_TOKEN');
           return globalSettings.env.ANTHROPIC_AUTH_TOKEN;
         }
       }
@@ -64,7 +68,7 @@ export class WebServer {
 
     // 3. 从全局环境变量获取
     if (process.env.ANTHROPIC_AUTH_TOKEN) {
-      console.log('从环境变量获取ANTHROPIC_AUTH_TOKEN');
+      dlog('从环境变量获取ANTHROPIC_AUTH_TOKEN');
       return process.env.ANTHROPIC_AUTH_TOKEN;
     }
 
@@ -116,7 +120,7 @@ export class WebServer {
       
       // 如果存在public目录，优先使用它
       if (fs.existsSync(publicDir)) {
-        console.log('Using built static files from:', publicDir);
+        dlog('Using built static files from:', publicDir);
         this.app.use(express.static(publicDir));
       }
       
@@ -135,14 +139,14 @@ export class WebServer {
         // 优先使用构建后的版本 dist/public/index.html
         const publicIndexPath = path.join(this.config.staticDir, 'public', 'index.html');
         if (fs.existsSync(publicIndexPath)) {
-          console.log('Serving built HTML from:', publicIndexPath);
+          dlog('Serving built HTML from:', publicIndexPath);
           return res.sendFile(publicIndexPath);
         }
         
         // 备选方案：使用 dist/index.html
         const indexPath = path.join(this.config.staticDir, 'index.html');
         if (fs.existsSync(indexPath)) {
-          console.log('Serving fallback HTML from:', indexPath);
+          dlog('Serving fallback HTML from:', indexPath);
           return res.sendFile(indexPath);
         }
         
@@ -190,7 +194,7 @@ export class WebServer {
           files = files.filter(file =>
             file.id.includes(sessionId) || file.name.includes(sessionId)
           );
-          console.log(`按sessionId ${sessionId} 过滤后找到 ${files.length} 个文件`);
+          dlog(`按sessionId ${sessionId} 过滤后找到 ${files.length} 个文件`);
         }
 
         const filesData: any = {
@@ -331,24 +335,39 @@ export class WebServer {
     this.app.get('/api/conversations/:fileId/llm-logs/:messageId', async (req, res) => {
       try {
         const { fileId, messageId } = req.params;
-        console.log(`查找LLM日志: fileId=${fileId}, messageId=${messageId}`);
+        dlog(`查找LLM日志: fileId=${fileId}, messageId=${messageId}`);
         
         // 1. 直接在日志目录中查找对应的文件
         const traceDir = path.join(this.config.projectDir, '.claude-trace', 'tracelog');
-        let resObj
-        const jsonlFilePath = path.join(traceDir, `${fileId}.jsonl`);
-
         let targetFilePath: string | null = null;
-        
-        // 查找.jsonl文件
+        let targetFileId = fileId;
+
+        //如果是agent-*文件，则从this.logDir目录读取此文件，找到第一个条记录的sessionId属性
+        if(fileId.startsWith('agent-')) {
+          const logFilePath = path.join(this.logDir, `${fileId}.jsonl`);
+          if (fs.existsSync(logFilePath)) {
+            const fileContent = await fs.readFileSync(logFilePath, 'utf-8');
+            const lines = fileContent.split('\n').filter(line => line.trim() !== '');
+            if (lines.length > 0) {
+              const firstRecord = JSON.parse(lines[0]);
+              if (firstRecord.sessionId) {
+                targetFileId = firstRecord.sessionId;
+                dlog(`根据agent-*文件找到sessionId: ${targetFileId}`);
+              }
+            }
+          }
+        }
+
+        // 查找sessionId.jsonl文件
+        const jsonlFilePath = path.join(traceDir, `${targetFileId}.jsonl`);
         if (fs.existsSync(jsonlFilePath)) {
           targetFilePath = jsonlFilePath;
-          console.log(`找到LLM日志文件: ${targetFilePath}`);
+          dlog(`找到LLM日志文件: ${targetFilePath}`);
         }
         else {
-          throw new Error(`找不到LLM日志文件: ${fileId}`);
+          throw new Error(`找不到LLM日志文件: ${targetFileId}`);
         }
-        
+
         // 2. 读取并解析文件内容
         const fileContent = await fs.promises.readFile(targetFilePath, 'utf-8');
         
@@ -369,11 +388,11 @@ export class WebServer {
                   const sseEvents = this.parseSSEData(record.response.body_raw);
                   for (const event of sseEvents) {
                     if (event.type === 'message_start' && event.message && event.message.id) {
-                      console.log(`找到message_start事件，messageId: ${event.message.id}, 查找的messageId: ${messageId}`);
+                      dlog(`找到message_start事件，messageId: ${event.message.id}, 查找的messageId: ${messageId}`);
                       if (event.message.id === messageId || messageId === 'step_1') {
                         // 如果messageId匹配，或者请求的是step_1（默认值），则返回这条记录
                         matchedRecord = record;
-                        console.log(`匹配成功，返回记录`);
+                        dlog(`匹配成功，返回记录`);
                         break;
                       }
                     }
@@ -399,7 +418,7 @@ export class WebServer {
           throw new Error(`在文件 ${fileId} 中找不到messageId: ${messageId}`);
         }
         
-        console.log(`找到匹配的LLM记录`);
+        dlog(`找到匹配的LLM记录`);
 
         //从traceDir中查找llm_requests目录尝试获取LLM请求数据文件，如果找到，覆盖LLM请求数据
         const llmRequestsDir = path.join(traceDir, 'llm_requests');
@@ -427,7 +446,7 @@ export class WebServer {
             // 解析SSE格式数据
             const sseEvents = this.parseSSEData(res.body_raw);
             res.body_data = this.transformSSEEvents(sseEvents);
-            console.log(`解析到 ${sseEvents.length} 个SSE事件`);
+            dlog(`解析到 ${sseEvents.length} 个SSE事件`);
             
             // 提取content_block_delta的文本内容
             const textParts: string[] = [];
@@ -437,11 +456,11 @@ export class WebServer {
               }
             }
             
-            console.log(`提取到 ${textParts.length} 个文本片段`);
+            dlog(`提取到 ${textParts.length} 个文本片段`);
             
             if (textParts.length > 0) {
               res.body_text = textParts.join('');
-              console.log(`合并后的文本长度: ${res.body_text.length}`);
+              dlog(`合并后的文本长度: ${res.body_text.length}`);
             }
           } catch (parseError) {
             console.warn(`解析body_raw失败: ${parseError}`);
@@ -568,7 +587,7 @@ export class WebServer {
 
   private setupWebSocket(): void {
     this.io.on('connection', (socket) => {
-      console.log('客户端连接:', socket.id);
+      dlog('客户端连接:', socket.id);
       
       // 发送连接确认
       socket.emit('connection', {
@@ -577,14 +596,14 @@ export class WebServer {
       });
       
       socket.on('disconnect', () => {
-        console.log('客户端断开连接:', socket.id);
+        dlog('客户端断开连接:', socket.id);
       });
     });
   }
 
   private setupFileWatcher(): void {
     this.fileWatcher = this.logFileManager.watchLogDirectory(this.logDir, async (eventType, filename, filepath) => {
-      console.log(`文件变化: ${eventType} - ${filename}`);
+      dlog(`文件变化: ${eventType} - ${filename}`);
       
       try {
         // 获取更新后的文件列表
@@ -624,12 +643,13 @@ export class WebServer {
   public async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.server.listen(this.config.port, 'localhost', () => {
+        this.server.listen(this.config.port, '0.0.0.0', () => {
           console.log(`Web服务器启动成功:`);
           console.log(`- 端口: ${this.config.port}`);
           console.log(`- 项目目录: ${this.config.projectDir}`);
           console.log(`- 日志目录: ${this.logDir}`);
-          console.log(`- 访问地址: http://localhost:${this.config.port}`);
+          console.log(`- 本地访问地址: http://localhost:${this.config.port}`);
+          console.log(`- 远程访问地址: http://<服务器IP>:${this.config.port}`);
           resolve();
         });
         

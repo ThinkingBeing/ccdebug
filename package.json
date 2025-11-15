@@ -1,6 +1,6 @@
 {
 	"name": "@myskyline_ai/ccdebug",
-	"version": "0.1.6",
+	"version": "0.1.8",
 	"description": "跟踪记录CC请求，可针对特定请求反复调试验证，以更直观的时间线形式展示CC日志",
 	"main": "dist/index.js",
 	"type": "commonjs",

@@ -31,10 +31,11 @@ class LogFileManager {
         return logDir;
     }
     generateProjectId(projectPath) {
-        // 根据实际规律：将路径中的所有 '/' 和 '_' 替换为 '-'，同时将非 ASCII 字符（如中文）也替换为 '-'
+        // 根据实际规律：将路径中的所有 '/'、'\'、'_' 和 ':' 替换为 '-'，同时将非 ASCII 字符（如中文）也替换为 '-'
         // 例如："/Users/ligf/Code/claude-code/ccdebug/ccdemo" -> "-Users-ligf-Code-claude-code-ccdebug-ccdemo"
         // 例如："/Users/ligf/Code/项目/测试" -> "-Users-ligf-Code---"
-        return projectPath.replace(/[\/_]/g, '-').replace(/[^\x00-\x7F]/g, '-');
+        // 例如："D:\mysoft\cctest\tests\办公资产_1\work" -> "D--mysoft-cctest-tests------1-work"
+        return projectPath.replace(/[\/\\:_]/g, '-').replace(/[^\x00-\x7F]/g, '-');
     }
     /**
      * 获取指定目录下的所有 JSONL 文件

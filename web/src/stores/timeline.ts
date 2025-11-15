@@ -11,6 +11,15 @@ import {
   ApiResponse 
 } from '../types/index'
 
+// 前端调试日志开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
+const hasWindow = typeof window !== 'undefined'
+const DEBUG_LOGS = hasWindow && (
+  new URLSearchParams(window.location.search).get('debug') === '1' ||
+  window.localStorage.getItem('CCDEBUG_DEBUG') === '1'
+)
+const dlog = (...args: any[]) => { if (DEBUG_LOGS) console.log(...args) }
+const dwarn = (...args: any[]) => { if (DEBUG_LOGS) console.warn(...args) }
+
 export const useTimelineStore = defineStore('timeline', () => {
   // 状态
   const currentProject = ref<ProjectInfo | null>(null)
@@ -63,7 +72,7 @@ export const useTimelineStore = defineStore('timeline', () => {
 
         // 如果存在sessionId且只有一个匹配文件，自动加载
         if (sessionId && files.length === 1) {
-          console.log(`找到唯一匹配sessionId ${sessionId} 的文件，自动加载: ${files[0].id}`)
+          dlog(`找到唯一匹配sessionId ${sessionId} 的文件，自动加载: ${files[0].id}`)
           await loadFile(files[0].id)
         }
         // 移除自动选择最新文件的逻辑，让用户手动选择
@@ -159,15 +168,15 @@ export const useTimelineStore = defineStore('timeline', () => {
     })
 
     socket.value.on('connect', () => {
-      console.log('WebSocket连接成功')
+      dlog('WebSocket连接成功')
     })
 
     socket.value.on('disconnect', () => {
-      console.log('WebSocket连接断开')
+      dlog('WebSocket连接断开')
     })
 
     socket.value.on('file:updated', async (data) => {
-      console.log('文件更新:', data)
+      dlog('文件更新:', data)
       
       // 更新文件列表
       if (data.data.files) {
@@ -226,7 +235,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     })
 
     socket.value.on('project:changed', (data) => {
-      console.log('项目变更:', data)
+      dlog('项目变更:', data)
       // 重新初始化
       initialize()
     })
