@@ -4,6 +4,7 @@ import { spawn, ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import { HTMLGenerator } from "./html-generator";
+import * as os from "os";
 
 /**
  * 获取工具版本号
@@ -117,9 +118,6 @@ ${colors.yellow}EXAMPLES:${colors.reset}
   # Start web server for specific project
   ccdebug --serve --project /path/to/project
 
-  # Use custom Claude binary path
-  ccdebug --claude-path /usr/local/bin/claude
-
 ${colors.yellow}OUTPUT:${colors.reset}
   Logs are saved to: ${colors.green}.claude-trace/log-YYYY-MM-DD-HH-MM-SS.{jsonl,html}${colors.reset}
   With --log NAME:   ${colors.green}.claude-trace/NAME.{jsonl,html}${colors.reset}
@@ -188,12 +186,47 @@ function getClaudeAbsolutePath(customPath?: string): string {
 		return resolveToJsFile(customPath);
 	}
 
+	// 检测操作系统
+	const isWindows = os.platform() === 'win32';
+
 	try {
-		let claudePath = require("child_process")
-			.execSync("which claude", {
-				encoding: "utf-8",
-			})
-			.trim();
+		let claudePath: string;
+		
+		if (isWindows) {
+			// Windows: 使用 where 命令
+			try {
+				const whereResult = require("child_process")
+					.execSync("where claude", {
+						encoding: "utf-8",
+					})
+					.trim();
+				
+				// where 命令可能返回多个结果，优先选择 Windows 批处理文件
+				const paths = whereResult.split('\n').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+				
+				// 优先选择 .cmd 或 .bat 文件，而不是 Unix shell 脚本
+				claudePath = paths.find((p: string) => p.endsWith('.cmd') || p.endsWith('.bat')) || paths[0];
+				
+			} catch (error) {
+				// where 命令失败，尝试使用 PowerShell
+				try {
+					claudePath = require("child_process")
+						.execSync('powershell -Command "Get-Command claude | Select-Object -ExpandProperty Source"', {
+							encoding: "utf-8",
+						})
+						.trim();
+				} catch (psError) {
+					throw new Error("Claude not found in PATH");
+				}
+			}
+		} else {
+			// Linux/Mac: 使用 which 命令
+			claudePath = require("child_process")
+				.execSync("which claude", {
+					encoding: "utf-8",
+				})
+				.trim();
+		}
 
 		// Handle shell aliases (e.g., "claude: aliased to /path/to/claude")
 		const aliasMatch = claudePath.match(/:\s*aliased to\s+(.+)$/);
@@ -201,44 +234,85 @@ function getClaudeAbsolutePath(customPath?: string): string {
 			claudePath = aliasMatch[1];
 		}
 
-		// Check if the path is a bash wrapper
+		// Check if the path is a bash wrapper (Linux/Mac) or batch file (Windows)
 		if (fs.existsSync(claudePath)) {
 			const content = fs.readFileSync(claudePath, "utf-8");
-			if (content.startsWith("#!/bin/bash")) {
-				// Parse bash wrapper to find actual executable
-				const execMatch = content.match(/exec\s+"([^"]+)"/);
-				if (execMatch && execMatch[1]) {
-					const actualPath = execMatch[1];
-					// Resolve any symlinks to get the final JS file
-					return resolveToJsFile(actualPath);
+			
+			if (isWindows) {
+				// Windows: 检查批处理文件 (.bat, .cmd) 或 PowerShell 脚本
+				if (claudePath.endsWith('.bat') || claudePath.endsWith('.cmd')) {
+					// 解析批处理文件来找到实际的 Node.js 脚本
+					// 匹配模式如: "%dp0%\node_modules\@anthropic-ai\claude-code\cli.js"
+					const matches = content.match(/["']([^"']*\.js)["']/g);
+					if (matches && matches.length > 0) {
+						// 取最后一个匹配，通常是实际的JS文件
+						let jsPath = matches[matches.length - 1].replace(/["']/g, '');
+						
+						// 替换 %dp0% 变量为批处理文件所在目录
+						if (jsPath.includes('%dp0%')) {
+							const batchDir = path.dirname(claudePath);
+							jsPath = jsPath.replace(/%dp0%/g, batchDir + '\\');
+						}
+						return resolveToJsFile(jsPath);
+					}
+				} else if (content.startsWith('#!') && content.includes('node')) {
+					// Node.js shebang 脚本
+					return resolveToJsFile(claudePath);
+				}
+			} else {
+				// Linux/Mac: 检查 bash wrapper
+				if (content.startsWith("#!/bin/bash")) {
+					// Parse bash wrapper to find actual executable
+					const execMatch = content.match(/exec\s+"([^"]+)"/);
+					if (execMatch && execMatch[1]) {
+						const actualPath = execMatch[1];
+						return resolveToJsFile(actualPath);
+					}
 				}
 			}
 		}
 
 		return resolveToJsFile(claudePath);
 	} catch (error) {
-		// First try the local bash wrapper
-		const os = require("os");
+		// First try the local installation paths
 		const localClaudeWrapper = path.join(os.homedir(), ".claude", "local", "claude");
+		const localClaudeBat = path.join(os.homedir(), ".claude", "local", "claude.bat");
+		const localClaudePath = path.join(os.homedir(), ".claude", "local", "node_modules", ".bin", "claude");
+		const localClaudeCmd = path.join(os.homedir(), ".claude", "local", "node_modules", ".bin", "claude.cmd");
 
-		if (fs.existsSync(localClaudeWrapper)) {
-			const content = fs.readFileSync(localClaudeWrapper, "utf-8");
-			if (content.startsWith("#!/bin/bash")) {
-				const execMatch = content.match(/exec\s+"([^"]+)"/);
-				if (execMatch && execMatch[1]) {
-					return resolveToJsFile(execMatch[1]);
+		// Try different local installation paths based on OS
+		const possiblePaths = isWindows ? [localClaudeBat, localClaudeCmd, localClaudePath] : [localClaudeWrapper, localClaudePath];
+		
+		for (const tryPath of possiblePaths) {
+			if (fs.existsSync(tryPath)) {
+				const content = fs.readFileSync(tryPath, "utf-8");
+				
+				if (isWindows && (tryPath.endsWith('.bat') || tryPath.endsWith('.cmd'))) {
+					// 解析 Windows 批处理文件
+					const matches = content.match(/["']([^"']*\.js)["']/g);
+					if (matches && matches.length > 0) {
+						let jsPath = matches[matches.length - 1].replace(/["']/g, '');
+						if (jsPath.includes('%dp0%')) {
+							const batchDir = path.dirname(tryPath);
+							jsPath = jsPath.replace(/%dp0%/g, batchDir + '\\');
+						}
+						return resolveToJsFile(jsPath);
+					}
+				} else if (!isWindows && content.startsWith("#!/bin/bash")) {
+					// 解析 Linux/Mac bash wrapper
+					const execMatch = content.match(/exec\s+"([^"]+)"/);
+					if (execMatch && execMatch[1]) {
+						return resolveToJsFile(execMatch[1]);
+					}
 				}
+				
+				return resolveToJsFile(tryPath);
 			}
 		}
 
-		// Then try the node_modules/.bin path
-		const localClaudePath = path.join(os.homedir(), ".claude", "local", "node_modules", ".bin", "claude");
-		if (fs.existsSync(localClaudePath)) {
-			return resolveToJsFile(localClaudePath);
-		}
-
 		log(`Claude CLI not found in PATH`, "red");
-		log(`Also checked for local installation at: ${localClaudeWrapper}`, "red");
+		log(`Also checked for local installation at:`, "red");
+		possiblePaths.forEach(p => log(`  ${p}`, "red"));
 		log(`Please install Claude Code CLI first`, "red");
 		process.exit(1);
 	}
@@ -587,7 +661,7 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	// Scenario 3: --generate-html input.jsonl [output.html]
+	// Scenario 3: --generate-html input.jsonl output.html
 	if (claudeTraceArgs.includes("--generate-html")) {
 		const flagIndex = claudeTraceArgs.indexOf("--generate-html");
 		const inputFile = claudeTraceArgs[flagIndex + 1];

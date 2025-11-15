@@ -3,11 +3,13 @@
 /**
  * CCDebug 项目打包脚本 (Node.js 版本)
  * 用于生成可分发的 npm 包
+ * 支持 Windows 和 Unix/Linux 系统
  */
 
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const os = require('os');
 
 // 颜色输出函数
 const colors = {
@@ -34,7 +36,8 @@ function execCommand(command, cwd = process.cwd()) {
         const result = execSync(command, { 
             cwd, 
             stdio: 'pipe',
-            encoding: 'utf8'
+            encoding: 'utf8',
+            shell: true  // 使用 shell 模式以支持 Windows
         });
         return result;
     } catch (error) {
@@ -46,7 +49,9 @@ function execCommand(command, cwd = process.cwd()) {
 
 function checkCommand(command) {
     try {
-        execSync(`which ${command}`, { stdio: 'pipe' });
+        // Windows 使用 where 命令，Unix/Linux 使用 which 命令
+        const checkCmd = os.platform() === 'win32' ? `where ${command}` : `which ${command}`;
+        execSync(checkCmd, { stdio: 'pipe', shell: true });
         return true;
     } catch {
         return false;
@@ -112,6 +117,27 @@ function formatBytes(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+function cleanDirectory(dirPath) {
+    if (fs.existsSync(dirPath)) {
+        if (os.platform() === 'win32') {
+            // Windows 使用 rmdir /s /q
+            try {
+                execSync(`rmdir /s /q "${dirPath}"`, { shell: true, stdio: 'pipe' });
+            } catch (error) {
+                // 如果命令失败，使用 Node.js 的方式
+                fs.rmSync(dirPath, { recursive: true, force: true });
+            }
+        } else {
+            // Unix/Linux 使用 rm -rf
+            try {
+                execSync(`rm -rf "${dirPath}"`, { shell: true, stdio: 'pipe' });
+            } catch (error) {
+                fs.rmSync(dirPath, { recursive: true, force: true });
+            }
+        }
+    }
+}
+
 async function main() {
     try {
         log('🚀 开始打包 CCDebug 项目...', 'green');
@@ -137,7 +163,7 @@ async function main() {
         log(`📦 创建 release 目录: ${releaseDir}`, 'blue');
         
         if (fs.existsSync(releaseDir)) {
-            fs.rmSync(releaseDir, { recursive: true, force: true });
+            cleanDirectory(releaseDir);
         }
         fs.mkdirSync(releaseDir, { recursive: true });
 
@@ -275,7 +301,7 @@ async function main() {
         fs.renameSync(srcTgz, destTgz);
 
         // 清理临时目录
-        fs.rmSync(tempPackageDir, { recursive: true, force: true });
+        cleanDirectory(tempPackageDir);
 
         // 获取包大小
         const packageSize = fs.statSync(destTgz).size;
