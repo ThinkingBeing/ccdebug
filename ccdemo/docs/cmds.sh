@@ -1,1 +1,0 @@
-cat docs/test.md | ccdebug --run-with -p "请按要求工作" --output-format stream-json
