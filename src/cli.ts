@@ -5,6 +5,9 @@ import * as path from "path";
 import * as fs from "fs";
 import { HTMLGenerator } from "./html-generator";
 import * as os from "os";
+import * as http from "http";
+import * as https from "https";
+import { URL } from "url";
 
 /**
  * 获取工具版本号
@@ -37,96 +40,33 @@ function log(message: string, color: ColorName = "reset"): void {
 function showHelp(): void {
 	console.log(`
 ${colors.blue}CCDebug${colors.reset}
-Record all your interactions with Claude Code as you develop your projects
+查看CC标准日志，跟踪CC所有API请求，允许修改并重新发起单步中的API请求，以调试CC轨迹
 
-${colors.yellow}USAGE:${colors.reset}
-  ccdebug [OPTIONS] [--run-with CLAUDE_ARG...]
+${colors.yellow}用法:${colors.reset}
+  ccdebug [选项] [--run-with CLAUDE_参数...]
 
-${colors.yellow}OPTIONS:${colors.reset}
-  --extract-token    Extract OAuth token and exit (reproduces claude-token.py)
-  --generate-html    Generate HTML report from JSONL file
-  --index           Generate conversation summaries and index for .claude-trace/ directory
-  --run-with         Pass all following arguments to Claude process
-  --include-all-requests Include all requests made through fetch, otherwise only requests to v1/messages with more than 2 messages in the context
-  --no-open          Don't open generated HTML file in browser
-  --log              Specify custom log file base name (without extension)
-  --claude-path      Specify custom path to Claude binary
-  --version, -v      Show version information
-  --help, -h         Show this help message
+${colors.yellow}选项:${colors.reset}
+  --serve           启动站点，查看claude code日志
+  --run-with         将后续所有参数传递给 Claude 进程
+  --claude-path      指定 Claude 二进制文件或cli.js的路径
+  --version, -v      显示版本信息
+  --help, -h         显示此帮助信息
 
-${colors.yellow}MODES:${colors.reset}
-  ${colors.green}Interactive logging:${colors.reset}
-    ccdebug                               Start Claude with traffic logging
-  ccdebug --log my-session              Start Claude with custom log file name
-  ccdebug --run-with chat                    Run Claude with specific command
-  ccdebug --run-with chat --model sonnet-3.5 Run Claude with multiple arguments
+${colors.yellow}模式:${colors.reset}
+  ${colors.green}交互式日志:${colors.reset}
+  ccdebug   启动带流量日志的 Claude
+  ccdebug --run-with -p ”请按要求工作“ --verbose  使用特定命令运行 Claude
 
-  ${colors.green}Token extraction:${colors.reset}
-    ccdebug --extract-token               Extract OAuth token for SDK usage
+  ${colors.green}Web 服务器:${colors.reset}
+  ccdebug --serve                            启动站点，查看claude code日志
+  ccdebug --serve --port 8080                在自定义端口上启动站点
+  ccdebug --serve --project /path/to/project 为特定项目启动站点
 
-  ${colors.green}HTML generation:${colors.reset}
-    ccdebug --generate-html file.jsonl          Generate HTML from JSONL file
-    ccdebug --generate-html file.jsonl out.html Generate HTML with custom output name
-    ccdebug --generate-html file.jsonl          Generate HTML and open in browser (default)
-    ccdebug --generate-html file.jsonl --no-open Generate HTML without opening browser
+${colors.yellow}输出:${colors.reset}
+  cc标准日志: ${colors.green}.claude-trace/cclog/*.jsonl${colors.reset}
+  cc跟踪日志: ${colors.green}.claude-trace/tracelog/*.jsonl${colors.reset}
 
-  ${colors.green}Indexing:${colors.reset}
-    ccdebug --index                             Generate conversation summaries and index
-
-  ${colors.green}Web server:${colors.reset}
-  ccdebug --serve                             Start web timeline server
-  ccdebug --serve --port 8080                Start web server on custom port
-  ccdebug --serve --project /path/to/project Start web server for specific project
-
-${colors.yellow}EXAMPLES:${colors.reset}
-  # Start Claude with logging
-  ccdebug
-
-  # Start Claude with custom log file name
-  ccdebug --log my-session
-
-  # Run Claude chat with logging
-  ccdebug --run-with chat
-
-  # Run Claude with specific model
-  ccdebug --run-with chat --model sonnet-3.5
-
-  # Pass multiple arguments to Claude
-  ccdebug --run-with --model gpt-4o --temperature 0.7
-
-  # Extract token for Anthropic SDK
-  export ANTHROPIC_API_KEY=$(ccdebug --extract-token)
-
-  # Generate HTML report
-  ccdebug --generate-html logs/traffic.jsonl report.html
-
-  # Generate HTML report and open in browser (default)
-  ccdebug --generate-html logs/traffic.jsonl
-
-  # Generate HTML report without opening browser
-  ccdebug --generate-html logs/traffic.jsonl --no-open
-
-  # Generate conversation index
-  ccdebug --index
-
-  # Start web timeline server
-  ccdebug --serve
-
-  # Start web server on custom port
-  ccdebug --serve --port 8080
-
-  # Start web server for specific project
-  ccdebug --serve --project /path/to/project
-
-${colors.yellow}OUTPUT:${colors.reset}
-  Logs are saved to: ${colors.green}.claude-trace/log-YYYY-MM-DD-HH-MM-SS.{jsonl,html}${colors.reset}
-  With --log NAME:   ${colors.green}.claude-trace/NAME.{jsonl,html}${colors.reset}
-
-${colors.yellow}MIGRATION:${colors.reset}
-  This tool replaces Python-based claude-logger and claude-token.py scripts
-  with a pure Node.js implementation. All output formats are compatible.
-
-For more information, visit: https://github.com/myskyline_ai/ccdebug
+更多信息请访问: https://github.com/myskyline_ai/ccdebug
 `);
 }
 
@@ -180,7 +120,7 @@ function getClaudeAbsolutePath(customPath?: string): string {
 	// If custom path is provided, use it directly
 	if (customPath) {
 		if (!fs.existsSync(customPath)) {
-			log(`Claude binary not found at specified path: ${customPath}`, "red");
+			log(`在指定路径未找到 Claude 二进制文件: ${customPath}`, "red");
 			process.exit(1);
 		}
 		return resolveToJsFile(customPath);
@@ -220,12 +160,35 @@ function getClaudeAbsolutePath(customPath?: string): string {
 				}
 			}
 		} else {
-			// Linux/Mac: 使用 which 命令
-			claudePath = require("child_process")
-				.execSync("which claude", {
-					encoding: "utf-8",
-				})
-				.trim();
+			// Linux/Mac: 使用 which 命令，但排除当前项目目录
+			try {
+				// 获取当前工作目录
+				const currentDir = process.cwd();
+				
+				// 使用 which 命令获取所有可能的 claude 路径
+				const whichResult = require("child_process")
+					.execSync("which -a claude", {
+						encoding: "utf-8",
+					})
+					.trim();
+				
+				// 分割所有路径
+				const allPaths = whichResult.split('\n').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+				
+				// 找到不在当前项目目录中的路径
+				claudePath = allPaths.find((p: string) => !p.includes(currentDir));
+				
+				// 如果没有找到合适的路径，使用第一个（全局）路径
+				if (!claudePath && allPaths.length > 0) {
+					claudePath = allPaths[0];
+				}
+				
+				if (!claudePath) {
+					throw new Error("Claude not found in PATH");
+				}
+			} catch (error) {
+				throw new Error("Claude not found in PATH");
+			}
 		}
 
 		// Handle shell aliases (e.g., "claude: aliased to /path/to/claude")
@@ -234,7 +197,7 @@ function getClaudeAbsolutePath(customPath?: string): string {
 			claudePath = aliasMatch[1];
 		}
 
-		// Check if the path is a bash wrapper (Linux/Mac) or batch file (Windows)
+		// Check if path is a bash wrapper (Linux/Mac) or batch file (Windows)
 		if (fs.existsSync(claudePath)) {
 			const content = fs.readFileSync(claudePath, "utf-8");
 			
@@ -310,19 +273,37 @@ function getClaudeAbsolutePath(customPath?: string): string {
 			}
 		}
 
-		log(`Claude CLI not found in PATH`, "red");
-		log(`Also checked for local installation at:`, "red");
+		log(`在 PATH 中未找到 Claude CLI`, "red");
+		log(`已检查本地安装位置:`, "red");
 		possiblePaths.forEach(p => log(`  ${p}`, "red"));
-		log(`Please install Claude Code CLI first`, "red");
+		log(`请先安装 Claude Code CLI`, "red");
 		process.exit(1);
 	}
 }
 
+function isNodeScript(claudePath: string): boolean {
+	try {
+		return claudePath.endsWith('.js');
+	} catch {
+		return false;
+	}
+}
+
 function getLoaderPath(): string {
-	const loaderPath = path.join(__dirname, "interceptor-loader.js");
+	// Check if we're in development mode (running from src) or production mode (running from dist)
+	const isDevMode = __dirname.includes('src') || !fs.existsSync(path.join(__dirname, '..', 'dist'));
+	
+	let loaderPath: string;
+	if (isDevMode) {
+		// Development mode: use src directory
+		loaderPath = path.resolve(__dirname, "interceptor-loader.js");
+	} else {
+		// Production mode: use dist directory
+		loaderPath = path.resolve(__dirname, "interceptor-loader.js");
+	}
 
 	if (!fs.existsSync(loaderPath)) {
-		log(`Interceptor loader not found at: ${loaderPath}`, "red");
+		log(`未找到拦截器加载器: ${loaderPath}`, "red");
 		process.exit(1);
 	}
 
@@ -337,53 +318,80 @@ async function runClaudeWithInterception(
 	customClaudePath?: string,
 	logBaseName?: string,
 ): Promise<void> {
-	log("CCDebug", "blue");
-	log("Starting Claude with traffic logging", "yellow");
+	log("启动 Claude 并记录流量日志", "blue");
 	if (claudeArgs.length > 0) {
-		log(`Claude arguments: ${claudeArgs.join(" ")}`, "blue");
+		log(`Claude 参数: ${claudeArgs.join(" ")}`, "blue");
 	}
-	console.log("");
 
 	const claudePath = getClaudeAbsolutePath(customClaudePath);
-	const loaderPath = getLoaderPath();
+	log(`使用 Claude 二进制文件: ${claudePath}`, "blue");
+	
+	let child: ChildProcess;
+	
+	if (isNodeScript(claudePath)) {
+		// Node.js 脚本方式：使用原有的 --require 方式
+		log("使用 Node.js 拦截方法", "blue");
+		const loaderPath = getLoaderPath();
+		const spawnArgs = ["--require", loaderPath, claudePath, ...claudeArgs];
+		child = spawn("node", spawnArgs, {
+			env: {
+				...process.env,
+				NODE_OPTIONS: "--no-deprecation",
+				CLAUDE_TRACE_INCLUDE_ALL_REQUESTS: includeAllRequests ? "true" : "false",
+				CLAUDE_TRACE_OPEN_BROWSER: openInBrowser ? "true" : "false",
+				...(logBaseName ? { CLAUDE_TRACE_LOG_NAME: logBaseName } : {}),
+			},
+			stdio: "inherit",
+			cwd: process.cwd(),
+		});
+	} else {
+		// ===== 方式 2: 二进制文件 - 无法拦截（给出提示）=====
+		console.log("");
+		log("⚠️  警告: 检测到原生二进制文件", "yellow");
+		log("CCDebug 无法拦截来自 Claude Code 原生二进制版本的 API 请求，调试功能将无法工作", "yellow");
+		log("要使用 CCDebug 的完整调试功能，请改用 NPM 版本的 Claude Code。", "yellow");
+		console.log("");
+		log("正在启动 Claude（不进行 API 拦截）...", "blue");
+		console.log("");
 
-	log(`Using Claude binary: ${claudePath}`, "blue");
-	log("Starting traffic logger...", "green");
-	console.log("");
+		// 给用户一点时间阅读提示信息
+		await new Promise(resolve => setTimeout(resolve, 500));
 
-	// Launch node with interceptor and absolute path to claude, plus any additional arguments
-	const spawnArgs = ["--require", loaderPath, claudePath, ...claudeArgs];
-	const child: ChildProcess = spawn("node", spawnArgs, {
-		env: {
-			...process.env,
-			NODE_OPTIONS: "--no-deprecation",
-			CLAUDE_TRACE_INCLUDE_ALL_REQUESTS: includeAllRequests ? "true" : "false",
-			CLAUDE_TRACE_OPEN_BROWSER: openInBrowser ? "true" : "false",
-			...(logBaseName ? { CLAUDE_TRACE_LOG_NAME: logBaseName } : {}),
-		},
-		stdio: "inherit",
-		cwd: process.cwd(),
-	});
+		// 直接启动 Claude 二进制文件，不使用代理
+		child = spawn(claudePath, claudeArgs, {
+			env: {
+				...process.env,
+			},
+			stdio: "inherit",
+			cwd: process.cwd(),
+		});
+	}
+
+	// Node.js 模式显示成功消息
+	if (isNodeScript(claudePath)) {
+		log("流量日志记录器启动成功", "green");
+		console.log("");
+	}
 
 	// Handle child process events
 	child.on("error", (error: Error) => {
-		log(`Error starting Claude: ${error.message}`, "red");
+		log(`启动 Claude 时出错: ${error.message}`, "red");
 		process.exit(1);
 	});
 
 	child.on("exit", (code: number | null, signal: string | null) => {
 		if (signal) {
-			log(`\nClaude terminated by signal: ${signal}`, "yellow");
+			log(`\nClaude 被信号终止: ${signal}`, "yellow");
 		} else if (code !== 0 && code !== null) {
-			log(`\nClaude exited with code: ${code}`, "yellow");
+			log(`\nClaude 退出，退出码: ${code}`, "yellow");
 		} else {
-			log("\nClaude session completed", "green");
+			log("\nClaude 会话已完成", "green");
 		}
 	});
 
 	// Handle our own signals
 	const handleSignal = (signal: string) => {
-		log(`\nReceived ${signal}, shutting down...`, "yellow");
+		log(`\n收到 ${signal} 信号，正在关闭...`, "yellow");
 		if (child.pid) {
 			child.kill(signal as NodeJS.Signals);
 		}
@@ -400,7 +408,7 @@ async function runClaudeWithInterception(
 		});
 	} catch (error) {
 		const err = error as Error;
-		log(`Unexpected error: ${err.message}`, "red");
+		log(`意外错误: ${err.message}`, "red");
 		process.exit(1);
 	}
 }
@@ -410,7 +418,7 @@ async function extractToken(customClaudePath?: string): Promise<void> {
 	const claudePath = getClaudeAbsolutePath(customClaudePath);
 
 	// Log to stderr so it doesn't interfere with token output
-	console.error(`Using Claude binary: ${claudePath}`);
+	console.error(`使用 Claude 二进制文件: ${claudePath}`);
 
 	// Create .claude-trace directory if it doesn't exist
     const ccdebugDir = path.join(process.cwd(), ".claude-trace");
@@ -424,7 +432,7 @@ async function extractToken(customClaudePath?: string): Promise<void> {
 	// Use the token extractor directly without copying
 	const tokenExtractorPath = path.join(__dirname, "token-extractor.js");
 	if (!fs.existsSync(tokenExtractorPath)) {
-		log(`Token extractor not found at: ${tokenExtractorPath}`, "red");
+		log(`未找到令牌提取器: ${tokenExtractorPath}`, "red");
 		process.exit(1);
 	}
 
@@ -452,7 +460,7 @@ async function extractToken(customClaudePath?: string): Promise<void> {
 	const timeout = setTimeout(() => {
 		child.kill();
 		cleanup();
-		console.error("Timeout: No token found within 30 seconds");
+		console.error("超时: 30 秒内未找到令牌");
 		process.exit(1);
 	}, 30000);
 
@@ -460,7 +468,7 @@ async function extractToken(customClaudePath?: string): Promise<void> {
 	child.on("error", (error: Error) => {
 		clearTimeout(timeout);
 		cleanup();
-		console.error(`Error starting Claude: ${error.message}`);
+		console.error(`启动 Claude 时出错: ${error.message}`);
 		process.exit(1);
 	});
 
@@ -482,7 +490,7 @@ async function extractToken(customClaudePath?: string): Promise<void> {
 		}
 
 		cleanup();
-		console.error("No authorization token found");
+		console.error("未找到授权令牌");
 		process.exit(1);
 	});
 
@@ -521,13 +529,13 @@ async function generateHTMLFromCLI(
 
 		if (openInBrowser) {
 			spawn("open", [finalOutputFile], { detached: true, stdio: "ignore" }).unref();
-			log(`Opening ${finalOutputFile} in browser`, "green");
+			log(`正在浏览器中打开 ${finalOutputFile}`, "green");
 		}
 
 		process.exit(0);
 	} catch (error) {
 		const err = error as Error;
-		log(`Error: ${err.message}`, "red");
+		log(`错误: ${err.message}`, "red");
 		process.exit(1);
 	}
 }
@@ -535,8 +543,6 @@ async function generateHTMLFromCLI(
 // Scenario 5: --serve
 async function startWebServer(port?: number, projectDir?: string): Promise<void> {
 	try {
-		console.log('🔍 调试测试: 启动Web服务器', { port, projectDir });
-		
 		// 使用 require 导入 web server 模块
 		const webServerPath = path.resolve(__dirname, "../web/server/index.js");
 		const webServerModule = require(webServerPath);
@@ -544,32 +550,30 @@ async function startWebServer(port?: number, projectDir?: string): Promise<void>
 		
 		const serverPort = port || 3001;
 		const serverProjectDir = projectDir || process.cwd();
-		
-		console.log('🔍 调试测试: 服务器配置', { serverPort, serverProjectDir });
-		
-		log("CCDebug Web Server", "blue");
-		log(`Starting web timeline server on port ${serverPort}`, "yellow");
-		log(`Project directory: ${serverProjectDir}`, "blue");
+
+		log("CCDebug Web 服务器", "blue");
+		log(`正在端口 ${serverPort} 上启动 Web 时间线服务器`, "yellow");
+		log(`项目目录: ${serverProjectDir}`, "blue");
 		console.log("");
-		
+
 		await startServer({
 			projectDir: path.resolve(serverProjectDir),
 			port: serverPort,
 			staticDir: path.resolve(__dirname, "../web/dist")
 		});
-		
-		log(`Web server started successfully!`, "green");
-		log(`Open http://localhost:${serverPort} in your browser`, "green");
-		
+
+		log(`Web 服务器启动成功！`, "green");
+		log(`在浏览器中打开 http://localhost:${serverPort}`, "green");
+
 		// 保持进程运行
 		process.on('SIGINT', () => {
-			log('\nShutting down web server...', "yellow");
+			log('\n正在关闭 Web 服务器...', "yellow");
 			process.exit(0);
 		});
-		
+
 	} catch (error) {
 		const err = error as Error;
-		log(`Error starting web server: ${err.message}`, "red");
+		log(`启动 Web 服务器时出错: ${err.message}`, "red");
 		process.exit(1);
 	}
 }
@@ -583,7 +587,7 @@ async function generateIndex(): Promise<void> {
 		process.exit(0);
 	} catch (error) {
 		const err = error as Error;
-		log(`Error: ${err.message}`, "red");
+		log(`错误: ${err.message}`, "red");
 		process.exit(1);
 	}
 }
@@ -645,7 +649,7 @@ async function main(): Promise<void> {
 	if (portIndex !== -1 && claudeTraceArgs[portIndex + 1]) {
 		servePort = parseInt(claudeTraceArgs[portIndex + 1], 10);
 		if (isNaN(servePort)) {
-			log(`Invalid port number: ${claudeTraceArgs[portIndex + 1]}`, "red");
+			log(`无效的端口号: ${claudeTraceArgs[portIndex + 1]}`, "red");
 			process.exit(1);
 		}
 	}
@@ -666,7 +670,7 @@ async function main(): Promise<void> {
 		const flagIndex = claudeTraceArgs.indexOf("--generate-html");
 		const inputFile = claudeTraceArgs[flagIndex + 1];
 
-		// Find the next argument that's not a flag as the output file
+		// Find is next argument that's not a flag as the output file
 		let outputFile: string | undefined;
 		for (let i = flagIndex + 2; i < claudeTraceArgs.length; i++) {
 			const arg = claudeTraceArgs[i];
@@ -677,8 +681,8 @@ async function main(): Promise<void> {
 		}
 
 		if (!inputFile) {
-			log(`Missing input file for --generate-html`, "red");
-			log(`Usage: ccdebug --generate-html input.jsonl [output.html]`, "yellow");
+			log(`--generate-html 缺少输入文件`, "red");
+			log(`用法: ccdebug --generate-html input.jsonl [output.html]`, "yellow");
 			process.exit(1);
 		}
 
@@ -704,6 +708,6 @@ async function main(): Promise<void> {
 
 main().catch((error) => {
 	const err = error as Error;
-	log(`Unexpected error: ${err.message}`, "red");
+	log(`意外错误: ${err.message}`, "red");
 	process.exit(1);
 });

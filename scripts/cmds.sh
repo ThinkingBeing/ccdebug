@@ -8,7 +8,17 @@ npx tsx src/cli.ts --serve --port 4103 --project /Users/ligf/工作/Code/平台/
 # 启动cc（快速测试）
 npx --node-options="--inspect-brk=9321" tsx src/cli.ts  --run-with -p "1+2=?" --output-format stream-json --verbose
 
-npx --inspect-brk tsx src/cli.ts  --run-with -p "1+2=?" --output-format stream-json --verbose
+npx tsx src/cli.ts  --run-with -p "1+2=?" --output-format stream-json --verbose
+
+npx tsx src/cli.ts --claude-path "/opt/homebrew/bin/claude"  --run-with -p "1+2=?" --output-format stream-json --verbose
+
+claude -p "1+2=?" --output-format stream-json --verbose
+
+/opt/homebrew/bin/claude -p "1+2=?" --output-format stream-json --verbose
+
+npx tsx src/cli.ts --claude-path "/Users/ligf/.nvm/versions/node/v22.20.0/lib/node_modules/@anthropic-ai/claude-code/cli.js"  --run-with -p "1+2=?" --output-format stream-json --verbose
+
+"/Users/ligf/.nvm/versions/node/v22.20.0/lib/node_modules/@anthropic-ai/claude-code/cli.js"  -p "1+2=?" --output-format stream-json --verbose
 
 # 启动cc（完整测试）
 cd ccdemo && cat ../scripts/test.md | npx tsx ../src/cli.ts --run-with -p  --output-format stream-json --verbose

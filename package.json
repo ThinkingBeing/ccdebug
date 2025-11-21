@@ -57,8 +57,10 @@
 	},
 	"dependencies": {
 		"@mariozechner/claude-trace": "^1.0.3",
+		"anyproxy": "^3.10.6",
 		"cors": "^2.8.5",
 		"express": "^4.18.2",
+		"http-mitm-proxy": "^1.1.0",
 		"socket.io": "^4.7.4"
 	},
 	"directories": {
