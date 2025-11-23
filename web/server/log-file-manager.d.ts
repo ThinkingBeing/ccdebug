@@ -58,5 +58,41 @@ export declare class LogFileManager {
      * 监听日志目录变化
      */
     watchLogDirectory(logDir: string, callback: (event: string, filename: string, filepath?: string) => void): any | null;
+    /**
+     * 根据子agent日志文件名在主日志中查找对应的subagent_type
+     * @param agentLogPath 子agent日志文件路径
+     * @param mainLogPath 主日志文件路径
+     * @returns Agent名称和描述
+     */
+    resolveAgentName(agentLogPath: string, mainLogPath: string): Promise<{
+        name: string;
+        description: string;
+    }>;
+    /**
+     * 在主日志行中查找指定 tool_use_id 的 tool_use 块
+     * @param mainLogLines 主日志所有行
+     * @param toolUseId 工具使用ID
+     * @returns tool_use 块或 null
+     */
+    private findToolUseById;
+    /**
+     * 提取日志文件的第一条用户消息作为预览
+     * @param logLines 日志文件所有行
+     * @returns 预览和完整内容
+     */
+    private extractInputPreview;
+    /**
+     * 获取指定会话的所有子agent日志
+     * @param logDir 日志目录
+     * @param sessionId 会话ID
+     * @returns 子agent日志信息数组
+     */
+    getAgentLogsForSession(logDir: string, sessionId: string): Promise<any[]>;
+    /**
+     * 获取所有主日志的摘要信息
+     * @param logDir 日志目录
+     * @returns 主日志摘要数组
+     */
+    getMainLogSummaries(logDir: string): Promise<any[]>;
 }
 //# sourceMappingURL=log-file-manager.d.ts.map

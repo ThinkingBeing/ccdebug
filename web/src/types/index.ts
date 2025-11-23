@@ -7,6 +7,28 @@ export interface LogFileInfo {
   size: number;         // 文件大小
 }
 
+// 子Agent日志信息接口
+export interface AgentLogInfo {
+  id: string;              // 文件ID（agent-{agentId}）
+  name: string;            // 文件名
+  path: string;            // 文件路径
+  agentId: string;         // Agent ID
+  agentName: string;       // Agent名称（subagent_type）
+  agentDescription: string; // Agent描述（subagent description）
+}
+
+// 主日志摘要信息接口
+export interface MainLogSummary {
+  id: string;              // 文件ID（不含.jsonl后缀的sessionId）
+  name: string;            // 文件名
+  path: string;            // 文件完整路径
+  startTime: string;       // 会话开始时间（第一条日志的timestamp）
+  endTime: string;         // 会话结束时间（最后一条日志的timestamp）
+  inputPreview: string;    // 会话输入消息预览（截取前50字符）
+  inputFull: string;       // 会话输入消息完整内容
+  agentLogs: AgentLogInfo[]; // 关联的子agent日志列表
+}
+
 // 项目信息接口
 export interface ProjectInfo {
   path: string;         // 项目路径

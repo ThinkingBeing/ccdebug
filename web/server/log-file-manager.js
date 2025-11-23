@@ -177,6 +177,316 @@ class LogFileManager {
         console.log(`开始监听日志目录: ${logDir}`);
         return watcher;
     }
+    /**
+     * 根据子agent日志文件名在主日志中查找对应的subagent_type
+     * @param agentLogPath 子agent日志文件路径
+     * @param mainLogPath 主日志文件路径
+     * @returns Agent名称和描述
+     */
+    async resolveAgentName(agentLogPath, mainLogPath) {
+        try {
+            // 1. 从文件名提取 agentId
+            const fileName = path.basename(agentLogPath, '.jsonl');
+            const agentId = fileName.replace('agent-', '');
+            // 2. 读取主日志所有行
+            const mainLogContent = await fs.promises.readFile(mainLogPath, 'utf-8');
+            const mainLogLines = mainLogContent.split('\n').filter((line) => line.trim());
+            // 3. 读取agent日志的第一行，获取用户消息
+            const agentContent = await fs.promises.readFile(agentLogPath, 'utf-8');
+            const agentLines = agentContent.split('\n').filter((line) => line.trim());
+            if (agentLines.length === 0) {
+                return { name: agentId, description: '' };
+            }
+            const firstAgentEntry = JSON.parse(agentLines[0]);
+            const agentFirstContent = firstAgentEntry.message?.content;
+            // 提取agent的第一条消息文本（用于匹配）
+            let agentFirstText = '';
+            if (typeof agentFirstContent === 'string') {
+                agentFirstText = agentFirstContent.substring(0, 100);
+            }
+            else if (Array.isArray(agentFirstContent) && agentFirstContent.length > 0) {
+                const firstBlock = agentFirstContent[0];
+                if (firstBlock.type === 'text' && firstBlock.text) {
+                    agentFirstText = firstBlock.text.substring(0, 100);
+                }
+            }
+            // 4. 获取主日志中所有Task工具调用
+            const taskToolUses = [];
+            for (const line of mainLogLines) {
+                try {
+                    const entry = JSON.parse(line);
+                    const content = entry.message?.content;
+                    if (!Array.isArray(content))
+                        continue;
+                    for (const block of content) {
+                        if (block.type === 'tool_use' && block.name === 'Task' && block.input?.subagent_type) {
+                            taskToolUses.push({
+                                id: block.id,
+                                name: block.input.subagent_type,
+                                description: block.input.description || '',
+                                input: block.input
+                            });
+                        }
+                    }
+                }
+                catch (parseError) {
+                    continue;
+                }
+            }
+            // 5. 尝试通过prompt匹配来识别agent
+            // 检查agent第一条消息是否在Task的prompt中出现
+            for (const task of taskToolUses) {
+                const taskPrompt = task.input?.prompt || '';
+                if (agentFirstText && taskPrompt.includes(agentFirstText.substring(0, 50))) {
+                    return {
+                        name: task.name,
+                        description: task.description
+                    };
+                }
+            }
+            // 6. 如果只有一个Task还未匹配，则使用它
+            if (taskToolUses.length > 0) {
+                // 按顺序返回第一个（简单策略）
+                return {
+                    name: taskToolUses[0].name,
+                    description: taskToolUses[0].description
+                };
+            }
+            // 回退：返回 agentId
+            return { name: agentId, description: '' };
+        }
+        catch (error) {
+            console.error(`解析Agent名称失败: ${agentLogPath}`, error);
+            // 从文件名提取 agentId 作为回退
+            const fileName = path.basename(agentLogPath, '.jsonl');
+            const agentId = fileName.replace('agent-', '');
+            return { name: agentId, description: '' };
+        }
+    }
+    /**
+     * 在主日志行中查找指定 tool_use_id 的 tool_use 块
+     * @param mainLogLines 主日志所有行
+     * @param toolUseId 工具使用ID
+     * @returns tool_use 块或 null
+     */
+    findToolUseById(mainLogLines, toolUseId) {
+        for (const line of mainLogLines) {
+            try {
+                const entry = JSON.parse(line);
+                const content = entry.message?.content;
+                if (!Array.isArray(content))
+                    continue;
+                for (const block of content) {
+                    if (block.type === 'tool_use' && block.id === toolUseId) {
+                        return block;
+                    }
+                }
+            }
+            catch (parseError) {
+                // 跳过无法解析的行
+                continue;
+            }
+        }
+        return null;
+    }
+    /**
+     * 提取日志文件的第一条用户消息作为预览
+     * @param logLines 日志文件所有行
+     * @returns 预览和完整内容
+     */
+    extractInputPreview(logLines) {
+        for (const line of logLines) {
+            try {
+                const entry = JSON.parse(line);
+                if (entry.message?.role === 'user') {
+                    const content = entry.message.content;
+                    let fullText = '';
+                    if (typeof content === 'string') {
+                        fullText = content;
+                    }
+                    else if (Array.isArray(content) && content.length > 0) {
+                        const firstBlock = content[0];
+                        if (firstBlock.type === 'text' && firstBlock.text) {
+                            fullText = firstBlock.text;
+                        }
+                        else if (typeof firstBlock === 'string') {
+                            fullText = firstBlock;
+                        }
+                    }
+                    return {
+                        preview: fullText.slice(0, 50) + (fullText.length > 50 ? '...' : ''),
+                        full: fullText
+                    };
+                }
+            }
+            catch (parseError) {
+                // 跳过无法解析的行
+                continue;
+            }
+        }
+        return { preview: '', full: '' };
+    }
+    /**
+     * 获取指定会话的所有子agent日志
+     * @param logDir 日志目录
+     * @param sessionId 会话ID
+     * @returns 子agent日志信息数组
+     */
+    async getAgentLogsForSession(logDir, sessionId) {
+        try {
+            if (!fs.existsSync(logDir)) {
+                console.warn(`日志目录不存在: ${logDir}`);
+                return [];
+            }
+            const files = await fs.promises.readdir(logDir);
+            const mainLogPath = path.join(logDir, `${sessionId}.jsonl`);
+            // 检查主日志是否存在
+            if (!fs.existsSync(mainLogPath)) {
+                console.warn(`主日志不存在: ${mainLogPath}`);
+                return [];
+            }
+            // 1. 获取主日志中所有Task工具调用（按顺序）
+            const mainLogContent = await fs.promises.readFile(mainLogPath, 'utf-8');
+            const mainLogLines = mainLogContent.split('\n').filter((line) => line.trim());
+            const taskToolUses = [];
+            for (const line of mainLogLines) {
+                try {
+                    const entry = JSON.parse(line);
+                    const content = entry.message?.content;
+                    if (!Array.isArray(content))
+                        continue;
+                    for (const block of content) {
+                        if (block.type === 'tool_use' && block.name === 'Task' && block.input?.subagent_type) {
+                            taskToolUses.push({
+                                name: block.input.subagent_type,
+                                description: block.input.description || ''
+                            });
+                        }
+                    }
+                }
+                catch (parseError) {
+                    continue;
+                }
+            }
+            // 2. 获取所有匹配的agent日志文件
+            const candidateAgents = [];
+            for (const file of files) {
+                // 仅处理子agent日志文件
+                if (file.startsWith('agent-') && file.endsWith('.jsonl')) {
+                    const agentLogPath = path.join(logDir, file);
+                    try {
+                        // 读取子agent日志的第一行，检查其 sessionId 是否匹配
+                        const content = await fs.promises.readFile(agentLogPath, 'utf-8');
+                        const firstLine = content.split('\n').find((line) => line.trim());
+                        if (firstLine) {
+                            const firstEntry = JSON.parse(firstLine);
+                            // 检查 sessionId 是否匹配，且不是 Warmup agent
+                            if (firstEntry.sessionId === sessionId) {
+                                const agentFirstContent = firstEntry.message?.content;
+                                let isWarmup = false;
+                                // 检查是否为Warmup agent
+                                if (typeof agentFirstContent === 'string' && agentFirstContent.includes('Warmup')) {
+                                    isWarmup = true;
+                                }
+                                if (!isWarmup) {
+                                    const stats = await fs.promises.stat(agentLogPath);
+                                    candidateAgents.push({
+                                        file,
+                                        path: agentLogPath,
+                                        agentId: file.replace('agent-', '').replace('.jsonl', ''),
+                                        mtime: stats.mtime
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    catch (error) {
+                        console.error(`处理子agent日志失败: ${file}`, error);
+                        continue;
+                    }
+                }
+            }
+            // 3. 按文件修改时间排序（创建顺序）
+            candidateAgents.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
+            // 4. 按顺序匹配：第N个agent文件对应第N个Task调用
+            const agentLogs = [];
+            candidateAgents.forEach((agent, index) => {
+                const task = taskToolUses[index] || { name: agent.agentId, description: '' };
+                agentLogs.push({
+                    id: agent.file.replace('.jsonl', ''),
+                    name: agent.file,
+                    path: agent.path,
+                    agentId: agent.agentId,
+                    agentName: task.name,
+                    agentDescription: task.description
+                });
+            });
+            return agentLogs;
+        }
+        catch (error) {
+            console.error('获取子agent日志失败:', error);
+            return [];
+        }
+    }
+    /**
+     * 获取所有主日志的摘要信息
+     * @param logDir 日志目录
+     * @returns 主日志摘要数组
+     */
+    async getMainLogSummaries(logDir) {
+        try {
+            if (!fs.existsSync(logDir)) {
+                console.warn(`日志目录不存在: ${logDir}`);
+                return [];
+            }
+            const files = await fs.promises.readdir(logDir);
+            const mainLogs = [];
+            for (const file of files) {
+                // 仅处理主日志文件（非 agent-*.jsonl 格式）
+                if (file.endsWith('.jsonl') && !file.startsWith('agent-')) {
+                    const filepath = path.join(logDir, file);
+                    const sessionId = file.replace('.jsonl', '');
+                    try {
+                        const content = await fs.promises.readFile(filepath, 'utf-8');
+                        const lines = content.split('\n').filter((line) => line.trim());
+                        if (lines.length === 0) {
+                            continue;
+                        }
+                        // 读取第一行和最后一行获取时间
+                        const firstEntry = JSON.parse(lines[0]);
+                        const lastEntry = JSON.parse(lines[lines.length - 1]);
+                        // 提取时间戳（支持多种格式）
+                        const startTime = firstEntry.timestamp || firstEntry.snapshot?.timestamp || firstEntry.message?.timestamp;
+                        const endTime = lastEntry.timestamp || lastEntry.snapshot?.timestamp || lastEntry.message?.timestamp;
+                        // 提取第一条用户消息
+                        const { preview, full } = this.extractInputPreview(lines);
+                        // 获取关联的子agent日志
+                        const agentLogs = await this.getAgentLogsForSession(logDir, sessionId);
+                        mainLogs.push({
+                            id: sessionId,
+                            name: file,
+                            path: filepath,
+                            startTime: startTime,
+                            endTime: endTime,
+                            inputPreview: preview,
+                            inputFull: full,
+                            agentLogs: agentLogs
+                        });
+                    }
+                    catch (error) {
+                        console.error(`处理主日志失败: ${file}`, error);
+                        continue;
+                    }
+                }
+            }
+            // 按开始时间降序排序，最新的在前面
+            return mainLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        }
+        catch (error) {
+            console.error('获取主日志摘要失败:', error);
+            return [];
+        }
+    }
 }
 exports.LogFileManager = LogFileManager;
 //# sourceMappingURL=log-file-manager.js.map

@@ -12,6 +12,11 @@
     </a-card>
 
     <a-card title="日志文件" :bordered="false" size="small" class="file-card">
+      <template #extra>
+        <a-button type="primary" size="small" @click="showMainLogDialog" :loading="mainLogsLoading">
+          选择会话
+        </a-button>
+      </template>
       <div class="file-selector-content">
         <a-select
           v-model="selectedFileId"
@@ -25,10 +30,10 @@
             v-for="file in availableFiles"
             :key="file.id"
             :value="file.id"
-            :label="file.name"
+            :label="getFileDisplayName(file)"
           >
             <div class="file-option">
-              <div class="file-name">{{ file.name }}</div>
+              <div class="file-name">{{ getFileDisplayName(file) }}</div>
             </div>
           </a-option>
         </a-select>
@@ -38,6 +43,14 @@
         </div>
       </div>
     </a-card>
+
+    <!-- 主日志选择对话框 -->
+    <MainLogSelectDialog
+      v-model:visible="mainLogDialogVisible"
+      :main-logs="mainLogs"
+      :loading="mainLogsLoading"
+      @select="handleMainLogSelect"
+    />
     <div v-if="currentConversation && selectedFileId">
       <a-card title="对话信息" :bordered="false" size="small" class="file-card">
         <div class="detail-item">
@@ -142,8 +155,9 @@
 import { computed, ref, watch, onMounted } from "vue";
 import { useTimelineStore } from "../stores/timeline";
 import { IconRefresh, IconFilter } from "@arco-design/web-vue/es/icon";
-import { ConversationStep } from "../types/index";
+import { ConversationStep, LogFileInfo, MainLogSummary } from "../types/index";
 import { getNodeColor, getNodeLightColor } from "../utils/colors";
+import MainLogSelectDialog from "./MainLogSelectDialog.vue";
 
 // 统一前端调试开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
 const DEBUG_LOGS = (() => {
@@ -168,10 +182,13 @@ const currentConversation = computed(() => timelineStore.currentConversation);
 const selectedStep = computed(() => timelineStore.selectedStep);
 const loading = computed(() => timelineStore.loading);
 const isConnected = computed(() => timelineStore.isConnected);
+const mainLogs = computed(() => timelineStore.mainLogs);
+const mainLogsLoading = computed(() => timelineStore.mainLogsLoading);
 
 // 本地状态
 const selectedFileId = ref<string | null>(null)
 const currentSessionId = ref<string | null>(null);
+const mainLogDialogVisible = ref(false);
 
 // 节点类型过滤器状态
 const availableStepTypes = [
@@ -281,6 +298,29 @@ const formatDateTime = (timestamp: string | Date): string => {
     minute: "2-digit",
     second: "2-digit",
   });
+};
+
+// 获取文件显示名称（子agent显示名称，主日志显示文件名）
+const getFileDisplayName = (file: LogFileInfo | any): string => {
+  // 如果文件有 agentName 属性（子agent日志），显示 agentName
+  if (file.agentName) {
+    return file.agentName;
+  }
+  // 否则显示文件名
+  return file.name;
+};
+
+// 显示主日志选择对话框
+const showMainLogDialog = async () => {
+  // 加载主日志列表
+  await timelineStore.fetchMainLogs();
+  mainLogDialogVisible.value = true;
+};
+
+// 处理主日志选择
+const handleMainLogSelect = async (mainLog: MainLogSummary) => {
+  dlog("📋 选择主日志:", mainLog);
+  await timelineStore.selectMainLog(mainLog);
 };
 
 // 组件挂载时检查URL参数

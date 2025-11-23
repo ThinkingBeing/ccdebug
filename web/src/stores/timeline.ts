@@ -2,13 +2,14 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
 import { io, Socket } from 'socket.io-client'
-import { 
-  LogFileInfo, 
-  ProjectInfo, 
-  ConversationData, 
+import {
+  LogFileInfo,
+  ProjectInfo,
+  ConversationData,
   ConversationStep,
   FilesApiResponse,
-  ApiResponse 
+  ApiResponse,
+  MainLogSummary
 } from '../types/index'
 
 // 前端调试日志开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
@@ -31,6 +32,11 @@ export const useTimelineStore = defineStore('timeline', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const socket = ref<Socket | null>(null)
+
+  // 主日志相关状态
+  const mainLogs = ref<MainLogSummary[]>([])
+  const selectedMainLog = ref<MainLogSummary | null>(null)
+  const mainLogsLoading = ref(false)
 
   // 计算属性
   const currentConversationData = computed(() => {
@@ -63,22 +69,28 @@ export const useTimelineStore = defineStore('timeline', () => {
       const urlParams = new URLSearchParams(window.location.search)
       const sessionId = urlParams.get('sessionid')
 
-      // 获取可用文件列表，如果存在sessionId则过滤
-      const filesUrl = sessionId ? `/api/files?sessionId=${encodeURIComponent(sessionId)}` : '/api/files'
-      const filesResponse = await axios.get<ApiResponse<FilesApiResponse>>(filesUrl)
-      if (filesResponse.data.success && filesResponse.data.data) {
-        const { files, latest } = filesResponse.data.data
-        availableFiles.value = files
+      // 如果有sessionId参数，使用旧的逻辑
+      if (sessionId) {
+        const filesUrl = `/api/files?sessionId=${encodeURIComponent(sessionId)}`
+        const filesResponse = await axios.get<ApiResponse<FilesApiResponse>>(filesUrl)
+        if (filesResponse.data.success && filesResponse.data.data) {
+          const { files } = filesResponse.data.data
+          availableFiles.value = files
 
-        // 如果存在sessionId且只有一个匹配文件，自动加载
-        if (sessionId && files.length === 1) {
-          dlog(`找到唯一匹配sessionId ${sessionId} 的文件，自动加载: ${files[0].id}`)
-          await loadFile(files[0].id)
+          // 如果存在sessionId且只有一个匹配文件，自动加载
+          if (files.length === 1) {
+            dlog(`找到唯一匹配sessionId ${sessionId} 的文件，自动加载: ${files[0].id}`)
+            await loadFile(files[0].id)
+          }
         }
-        // 移除自动选择最新文件的逻辑，让用户手动选择
-        // else if (latest && files.length > 0) {
-        //   await loadFile(latest)
-        // }
+      } else {
+        // 获取主日志列表
+        await fetchMainLogs()
+
+        // 默认选中第一个主日志
+        if (mainLogs.value.length > 0) {
+          await selectMainLog(mainLogs.value[0])
+        }
       }
 
       // 初始化WebSocket连接
@@ -276,6 +288,58 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
+  // 获取主日志列表
+  const fetchMainLogs = async () => {
+    mainLogsLoading.value = true
+    error.value = null
+
+    try {
+      const response = await axios.get<ApiResponse<{mainLogs: MainLogSummary[], logDir: string}>>('/api/main-logs')
+
+      if (response.data.success && response.data.data) {
+        mainLogs.value = response.data.data.mainLogs
+        dlog(`获取到 ${mainLogs.value.length} 个主日志`)
+      } else {
+        throw new Error(response.data.error || '获取主日志列表失败')
+      }
+    } catch (err) {
+      console.error('获取主日志列表失败:', err)
+      error.value = '获取主日志列表失败，请重试'
+    } finally {
+      mainLogsLoading.value = false
+    }
+  }
+
+  // 选择主日志，刷新文件列表
+  const selectMainLog = async (mainLog: MainLogSummary) => {
+    selectedMainLog.value = mainLog
+    loading.value = true
+    error.value = null
+
+    try {
+      // 获取该主日志及其子agent日志的文件列表
+      const filesUrl = `/api/files?mainLogId=${encodeURIComponent(mainLog.id)}`
+      const response = await axios.get<ApiResponse<FilesApiResponse>>(filesUrl)
+
+      if (response.data.success && response.data.data) {
+        availableFiles.value = response.data.data.files
+        dlog(`选中主日志 ${mainLog.id}，共 ${availableFiles.value.length} 个文件`)
+
+        // 自动加载主日志文件
+        if (availableFiles.value.length > 0) {
+          await loadFile(mainLog.id)
+        }
+      } else {
+        throw new Error(response.data.error || '获取文件列表失败')
+      }
+    } catch (err) {
+      console.error('选择主日志失败:', err)
+      error.value = '选择主日志失败，请重试'
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // 状态
     currentProject,
@@ -286,12 +350,15 @@ export const useTimelineStore = defineStore('timeline', () => {
     selectedStep,
     loading,
     error,
-    
+    mainLogs,
+    selectedMainLog,
+    mainLogsLoading,
+
     // 计算属性
     currentConversationData,
     currentStepData,
     isConnected,
-    
+
     // Actions
     initialize,
     loadFile,
@@ -300,6 +367,8 @@ export const useTimelineStore = defineStore('timeline', () => {
     scrollToStep,
     refreshFiles,
     clearError,
-    disconnect
+    disconnect,
+    fetchMainLogs,
+    selectMainLog
   }
 })

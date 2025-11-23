@@ -184,13 +184,52 @@ class WebServer {
                 res.status(500).json(response);
             }
         });
+        // 主日志列表API
+        this.app.get('/api/main-logs', async (req, res) => {
+            try {
+                const mainLogs = await this.logFileManager.getMainLogSummaries(this.logDir);
+                const response = {
+                    success: true,
+                    data: {
+                        mainLogs: mainLogs,
+                        logDir: this.logDir
+                    }
+                };
+                res.json(response);
+            }
+            catch (error) {
+                console.error('获取主日志列表失败:', error);
+                const response = {
+                    success: false,
+                    error: error instanceof Error ? error.message : '未知错误'
+                };
+                res.status(500).json(response);
+            }
+        });
         // 文件列表API
         this.app.get('/api/files', async (req, res) => {
             try {
                 const sessionId = req.query.sessionId;
+                const mainLogId = req.query.mainLogId;
                 let files = await this.logFileManager.getAvailableLogFiles(this.logDir);
+                // 如果提供了mainLogId参数，返回主日志及其子agent日志
+                if (mainLogId) {
+                    // 获取主日志
+                    const mainLog = files.find(f => f.id === mainLogId);
+                    if (mainLog) {
+                        // 获取子agent日志
+                        const agentLogs = await this.logFileManager.getAgentLogsForSession(this.logDir, mainLogId);
+                        // 合并主日志和子agent日志
+                        files = [mainLog, ...agentLogs];
+                        dlog(`按mainLogId ${mainLogId} 过滤后找到 ${files.length} 个文件（1个主日志 + ${agentLogs.length}个子agent日志）`);
+                    }
+                    else {
+                        files = [];
+                        dlog(`未找到mainLogId为 ${mainLogId} 的主日志`);
+                    }
+                }
                 // 如果提供了sessionId参数，过滤匹配的文件
-                if (sessionId) {
+                else if (sessionId) {
                     files = files.filter(file => file.id.includes(sessionId) || file.name.includes(sessionId));
                     dlog(`按sessionId ${sessionId} 过滤后找到 ${files.length} 个文件`);
                 }
@@ -199,7 +238,8 @@ class WebServer {
                     latest: files.length > 0 ? files[0].id : null,
                     projectDir: this.config.projectDir,
                     logDir: this.logDir,
-                    sessionId: sessionId || null
+                    sessionId: sessionId || null,
+                    mainLogId: mainLogId || null
                 };
                 const response = {
                     success: true,

@@ -1,4 +1,6 @@
 # 启动web（ccdemo）
+npx --node-options="--inspect-brk=9321" tsx src/cli.ts --serve --port 4101 --project ccdemo
+
 npx tsx src/cli.ts --serve --port 4101 --project ccdemo
 
 # 启动web（其他目录）
