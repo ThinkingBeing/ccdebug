@@ -89,11 +89,29 @@ export class WebServer {
     this.logFileManager = new LogFileManager();
     this.conversationParser = new ConversationParser();
 
-    //默认从当前项目的.claude-trace/cclog目录获取cc日志文件，如果cclog不存在，再从.claude/projects下获取
+    //默认从当前项目的.claude-trace/cclog目录获取cc日志文件，如果cclog不存在或没有jsonl文件，再从.claude/projects下获取
     this.logDir = path.join(config.projectDir, '.claude-trace/cclog');
-    if (!fs.existsSync(this.logDir)) {
-			this.logDir = this.logFileManager.resolveLogDirectory(config.projectDir);
-		}
+    
+    // 检查目录是否存在以及目录中是否有jsonl文件
+    let useDefaultLogDir = true;
+    if (fs.existsSync(this.logDir)) {
+      try {
+        const files = fs.readdirSync(this.logDir);
+        const hasJsonlFiles = files.some(file => file.endsWith('.jsonl'));
+        if (hasJsonlFiles) {
+          useDefaultLogDir = false;
+          dlog(`使用默认日志目录: ${this.logDir}，找到 ${files.filter(f => f.endsWith('.jsonl')).length} 个jsonl文件`);
+        }
+      } catch (error) {
+        console.error('读取日志目录失败:', error);
+      }
+    }
+    
+    // 如果目录不存在或没有jsonl文件，则使用resolveLogDirectory
+    if (useDefaultLogDir) {
+      this.logDir = this.logFileManager.resolveLogDirectory(config.projectDir);
+      dlog(`使用备用日志目录: ${this.logDir}`);
+    }
   
     // 设置ConversationParser的日志目录
     this.conversationParser.setLogDirectory(this.logDir);

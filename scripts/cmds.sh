@@ -3,6 +3,10 @@ npx --node-options="--inspect-brk=9321" tsx src/cli.ts --serve --port 4101 --pro
 
 npx tsx src/cli.ts --serve --port 4101 --project ccdemo
 
+npx tsx src/cli.ts -l --port 4101 --project .
+
+npx --node-options="--inspect-brk=9321" tsx src/cli.ts -l --serve --port 4102 --project .
+
 # 启动web（其他目录）
 npx tsx src/cli.ts --serve --port 4102 --project /Users/ligf/工作/Code/平台/ccmodeling/platform_ai/0011
 npx tsx src/cli.ts --serve --port 4103 --project /Users/ligf/工作/Code/平台/ccmodeling/platform_ai/x_0338
@@ -24,3 +28,5 @@ npx tsx src/cli.ts --claude-path "/Users/ligf/.nvm/versions/node/v22.20.0/lib/no
 
 # 启动cc（完整测试）
 cd ccdemo && cat ../scripts/test.md | npx tsx ../src/cli.ts --run-with -p  --output-format stream-json --verbose
+
+npm install -g @myskyline_ai-ccdebug-0.2.0.tgz

@@ -381,7 +381,8 @@ export class LogFileManager {
       const mainLogContent = await fs.promises.readFile(mainLogPath, 'utf-8');
       const mainLogLines = mainLogContent.split('\n').filter((line: string) => line.trim());
 
-      const taskToolUses: Array<{name: string, description: string}> = [];
+      const taskToolUses: Array<{id: string, agentName: string, agentId: string, description: string}> = [];
+      const taskToolResult: Array<{id: string, agentId: string}> = [];
 
       for (const line of mainLogLines) {
         try {
@@ -392,13 +393,31 @@ export class LogFileManager {
           for (const block of content) {
             if (block.type === 'tool_use' && block.name === 'Task' && block.input?.subagent_type) {
               taskToolUses.push({
-                name: block.input.subagent_type,
+                id: block.id,
+                agentId: "",
+                agentName: block.input.subagent_type,
                 description: block.input.description || ''
+              });
+            }
+            if (block.type === 'tool_result' && entry.toolUseResult && entry.toolUseResult?.agentId) {
+              taskToolResult.push({
+                id: block.tool_use_id,
+                agentId: entry.toolUseResult.agentId
               });
             }
           }
         } catch (parseError) {
           continue;
+        }
+      }
+
+      //将taskToolResult的agentId合并到taskToolUses
+      for(const toolUse of taskToolUses) {
+        const toolUseId = toolUse.id;
+        const tResult = taskToolResult.find((toolResult) => {return toolResult.id === toolUseId;});
+        //如果没找到工具调用结果，跳过
+        if(tResult && tResult?.agentId) {
+          toolUse.agentId = tResult.agentId;
         }
       }
 
@@ -434,7 +453,7 @@ export class LogFileManager {
                     file,
                     path: agentLogPath,
                     agentId: file.replace('agent-', '').replace('.jsonl', ''),
-                    mtime: stats.mtime
+                    mtime: new Date(firstEntry.timestamp)
                   });
                 }
               }
@@ -449,20 +468,23 @@ export class LogFileManager {
       // 3. 按文件修改时间排序（创建顺序）
       candidateAgents.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
 
-      // 4. 按顺序匹配：第N个agent文件对应第N个Task调用
+      // 4. 按agentId关联agent名称及agent日志文件
       const agentLogs: any[] = [];
 
       candidateAgents.forEach((agent, index) => {
-        const task = taskToolUses[index] || { name: agent.agentId, description: '' };
+        const task = taskToolUses.find((tUse) => {return tUse.agentId === agent.agentId});
 
-        agentLogs.push({
+        if(task) {
+          agentLogs.push({
           id: agent.file.replace('.jsonl', ''),
           name: agent.file,
           path: agent.path,
           agentId: agent.agentId,
-          agentName: task.name,
-          agentDescription: task.description
+          agentName: task?.agentName ? task.agentName: agent.agentId,
+          agentDescription: task?.description ? task.description : ""
         });
+        }
+        
       });
 
       return agentLogs;

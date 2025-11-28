@@ -3,6 +3,18 @@
   "version": "1.0.0",
   "description": "Web timeline interface for Claude Code Debug",
   "type": "module",
+  "files": [
+    "dist/**/*",
+    "server/**/*",
+    "public/**/*",
+    "index.html",
+    "vite.config.*",
+    "tsconfig.*",
+    "!node_modules",
+    "!src",
+    "!.DS_Store",
+    "!.gitignore"
+  ],
   "scripts": {
     "dev": "vite --host --port 3002",
     "build": "vite build",

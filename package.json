@@ -1,7 +1,10 @@
 {
 	"name": "@myskyline_ai/ccdebug",
-	"version": "0.2.0",
+	"version": "0.2.3",
 	"description": "跟踪记录CC请求，可针对特定请求反复调试验证，以更直观的时间线形式展示CC日志",
+	"publishConfig": {
+		"access": "public"
+	},
 	"main": "dist/index.js",
 	"type": "commonjs",
 	"bin": {
@@ -26,7 +29,12 @@
 		"dist/**/*",
 		"frontend/dist/**/*",
 		"frontend/template.html",
-		"web/**/*",
+		"web/dist/**/*",
+		"web/server/**/*.js",
+		"web/server/**/*.d.ts",
+		"web/server/**/*.map",
+		"web/index.html",
+		"web/debug.html",
 		"README.md"
 	],
 	"keywords": [

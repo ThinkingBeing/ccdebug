@@ -105,29 +105,45 @@ export const useTimelineStore = defineStore('timeline', () => {
   }
 
   const loadFile = async (fileId: string) => {
-    if (currentFileId.value === fileId) return
-    
+    if (currentFileId.value === fileId && currentConversation.value !== null) return
+
     loading.value = true
     error.value = null
-    
+
+    // 先清空旧数据，避免显示上一个会话的内容
+    currentConversation.value = null
+    selectedStep.value = null
+    conversations.value = []
+
     try {
       const response = await axios.get<ApiResponse<ConversationData>>(`/api/conversations/${fileId}`)
-      
+
       if (response.data.success && response.data.data) {
         // 将单个对话数据包装成数组
         conversations.value = [response.data.data]
         currentFileId.value = fileId
-        
-        // 自动选择第一个对话
+
+        // 设置当前对话（即使没有步骤也要设置，这样才能显示空状态提示）
+        currentConversation.value = response.data.data
+
+        // 如果有步骤，自动选择第一个步骤
         if (response.data.data.steps && response.data.data.steps.length > 0) {
-          selectConversation(response.data.data)
+          selectedStep.value = response.data.data.steps[0]
+        } else {
+          selectedStep.value = null
         }
       } else {
+        // 如果加载失败，保持清空状态
+        currentFileId.value = fileId
         throw new Error(response.data.error || '加载文件失败')
       }
     } catch (err) {
       console.error('加载文件失败:', err)
       error.value = '加载文件失败，请重试'
+      // 确保出错时也清空数据
+      currentConversation.value = null
+      selectedStep.value = null
+      conversations.value = []
     } finally {
       loading.value = false
     }

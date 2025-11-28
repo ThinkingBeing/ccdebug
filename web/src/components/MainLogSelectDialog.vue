@@ -17,6 +17,7 @@
         row-key="id"
         :row-selection="rowSelection"
         v-model:selected-keys="selectedKeys"
+        @row-click="handleRowClick"
       >
         <template #fileName="{ record }">
           <div class="file-name-cell">
@@ -143,6 +144,12 @@ const formatTime = (isoString: string): string => {
   const seconds = String(date.getSeconds()).padStart(2, '0')
 
   return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`
+}
+
+// 处理行点击事件
+const handleRowClick = (record: MainLogSummary) => {
+  selectedKeys.value = [record.id]
+  selectedRow.value = record
 }
 
 // 确认选择

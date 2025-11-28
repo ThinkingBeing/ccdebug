@@ -1,0 +1,45 @@
+# 依赖目录
+**/node_modules/
+web/node_modules/
+frontend/node_modules/
+
+# 源代码（只发布编译后的文件）
+web/src/
+web/tsconfig*.json
+web/vite.config.*
+frontend/src/
+frontend/tsconfig.json
+frontend/tsup.config.ts
+frontend/postcss.config.js
+frontend/tailwind.config.js
+
+# 系统文件
+**/.DS_Store
+.DS_Store
+
+# 演示项目
+ccdemo/
+
+# 开发配置
+.vscode/
+.trae/
+.husky/
+
+# Git
+.git/
+.gitignore
+
+# 测试文件
+test/
+
+# 构建临时文件
+*.tsbuildinfo
+
+# 脚本（用户不需要）
+scripts/
+
+# 其他
+.env
+.env.*
+*.log
+npm-debug.log*

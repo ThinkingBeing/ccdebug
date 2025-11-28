@@ -51,27 +51,26 @@
       :loading="mainLogsLoading"
       @select="handleMainLogSelect"
     />
-    <div v-if="currentConversation && selectedFileId">
-      <a-card title="对话信息" :bordered="false" size="small" class="file-card">
+    <div v-if="selectedFileId">
+      <a-card title="日志信息" :bordered="false" size="small" class="file-card">
         <div class="detail-item">
-          <span class="label">对话ID:</span>
-          <span class="value">{{ currentConversation.id }}</span>
+          <span class="label">文件名:</span>
+          <span class="value">{{ selectedFileId }}</span>
         </div>
         <div class="detail-item">
           <span class="label">开始时间:</span>
           <span class="value">{{
-            formatDateTime(currentConversation.timestamp)
+            currentConversation?.timestamp ? formatDateTime(currentConversation.timestamp) : '-'
           }}</span>
         </div>
         <div class="detail-item">
           <span class="label">步骤数量:</span>
           <span class="value">{{
-            currentConversation.steps.filter((s) => s.type !== "tool_result")
-              .length
+            currentConversation?.steps ? currentConversation.steps.filter((s) => s.type !== "tool_result").length : 0
           }}</span>
         </div>
       </a-card>
-      <a-card title="步骤概览" :bordered="false" class="file-card" size="small">
+      <a-card v-if="currentConversation?.steps && currentConversation.steps.length > 0" title="步骤概览" :bordered="false" class="file-card" size="small">
         <!-- 节点类型过滤器 -->
         <template #extra>
           <a-popover trigger="click" position="bottom">
@@ -404,6 +403,10 @@ onMounted(() => {
 
 .file-hint {
   margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
 }
 
 .conversation-stats {

@@ -6,8 +6,22 @@
     </div>
     
     <div v-else class="timeline-content">
+      <!-- 空状态提示 -->
+      <div v-if="!currentConversation || !currentConversation.steps || currentConversation.steps.length === 0" class="empty-state">
+        <a-empty description="">
+          <template #image>
+            <icon-file-image :size="48" />
+          </template>
+          <div class="empty-message">
+            <p class="empty-title">无对话数据</p>
+            <p class="empty-description">未从当前会话日志中提取到对话数据，请选择其他会话。</p>
+            <p class="empty-hint">此文件可能是会话摘要或尚未记录任何交互</p>
+          </div>
+        </a-empty>
+      </div>
+
       <!-- 时间线 -->
-      <div class="timeline-wrapper" v-if="currentConversation">
+      <div class="timeline-wrapper" v-else-if="currentConversation">
         <h2 class="timeline-title">{{ currentConversation.title }}</h2>
         <div class="timeline-main">
           <div 
@@ -120,6 +134,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, defineOptions } from 'vue'
 import { Tooltip as ATooltip } from '@arco-design/web-vue'
+import { IconFileImage } from '@arco-design/web-vue/es/icon'
 import { useTimelineStore } from '../stores/timeline'
 import type { ConversationStep } from '../types'
 
@@ -592,7 +607,32 @@ defineExpose({
   justify-content: center;
   height: 100%;
   color: #666;
-  padding: 40px 20px;
+  padding: 60px 20px;
+  width:100%;
+}
+
+.empty-message {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.empty-description {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
 }
 
 .no-files-alert {

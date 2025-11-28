@@ -46,7 +46,7 @@ ${colors.yellow}用法:${colors.reset}
   ccdebug [选项] [--run-with CLAUDE_参数...]
 
 ${colors.yellow}选项:${colors.reset}
-  --serve           启动站点，查看claude code日志
+  --serve, --log, -l  启动站点，查看claude code日志
   --run-with         将后续所有参数传递给 Claude 进程
   --claude-path      指定 Claude 二进制文件或cli.js的路径
   --version, -v      显示版本信息
@@ -55,12 +55,18 @@ ${colors.yellow}选项:${colors.reset}
 ${colors.yellow}模式:${colors.reset}
   ${colors.green}交互式日志:${colors.reset}
   ccdebug   启动带流量日志的 Claude
-  ccdebug --run-with -p ”请按要求工作“ --verbose  使用特定命令运行 Claude
+  ccdebug --run-with -p "请按要求工作" --verbose  使用特定命令运行 Claude
 
   ${colors.green}Web 服务器:${colors.reset}
   ccdebug --serve                            启动站点，查看claude code日志
+  ccdebug --log                              启动站点，查看claude code日志
+  ccdebug -l                                 启动站点，查看claude code日志
   ccdebug --serve --port 8080                在自定义端口上启动站点
+  ccdebug --log --port 8080                  在自定义端口上启动站点
+  ccdebug -l --port 8080                     在自定义端口上启动站点
   ccdebug --serve --project /path/to/project 为特定项目启动站点
+  ccdebug --log --project /path/to/project   为特定项目启动站点
+  ccdebug -l --project /path/to/project      为特定项目启动站点
 
 ${colors.yellow}输出:${colors.reset}
   cc标准日志: ${colors.green}.claude-trace/cclog/*.jsonl${colors.reset}
@@ -540,7 +546,7 @@ async function generateHTMLFromCLI(
 	}
 }
 
-// Scenario 5: --serve
+// Scenario 5: --serve, --log, -l
 async function startWebServer(port?: number, projectDir?: string): Promise<void> {
 	try {
 		// 使用 require 导入 web server 模块
@@ -696,8 +702,20 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	// Scenario 5: --serve
-	if (claudeTraceArgs.includes("--serve")) {
+	// Scenario 5: --serve, --log, -l
+	const hasServeFlag = claudeTraceArgs.includes("--serve");
+	const hasLogFlag = claudeTraceArgs.includes("--log") || claudeTraceArgs.includes("-l");
+	
+	// Check if --log is used with a value (not as a flag)
+	const logFlagIndex = claudeTraceArgs.indexOf("--log");
+	const isLogWithValue = logFlagIndex !== -1 && 
+		logFlagIndex + 1 < claudeTraceArgs.length && 
+		!claudeTraceArgs[logFlagIndex + 1].startsWith("--");
+	
+	// Only treat --log as a serve flag if it's not used with a value
+	const hasLogFlagAsOption = hasLogFlag && !isLogWithValue;
+	
+	if (hasServeFlag || hasLogFlagAsOption) {
 		await startWebServer(servePort, serveProjectDir);
 		return;
 	}
