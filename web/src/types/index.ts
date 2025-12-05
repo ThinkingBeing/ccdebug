@@ -102,3 +102,17 @@ export interface WebSocketMessage {
   };
   timestamp: string;
 }
+
+// 可用项目信息接口
+export interface AvailableProjectInfo {
+  path: string;         // 项目完整路径
+  name: string;         // 项目名称（目录名）
+  isDefault: boolean;   // 是否为启动时的默认项目
+}
+
+// 项目列表API响应
+export interface ProjectsApiResponse {
+  projects: AvailableProjectInfo[];
+  defaultProject: string;
+  projectsDir: string;
+}

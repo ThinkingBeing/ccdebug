@@ -1,6 +1,11 @@
 <template>
   <div class="file-selector">
     <a-card title="项目信息" :bordered="false" size="small" class="file-card">
+      <template #extra>
+        <a-button type="primary" size="small" @click="showProjectDialog" :loading="projectsLoading">
+          选择项目
+        </a-button>
+      </template>
       <div class="info-item">
         <span class="label">项目路径:</span>
         <span class="value">{{ currentProject?.path || "未知" }}</span>
@@ -50,6 +55,15 @@
       :main-logs="mainLogs"
       :loading="mainLogsLoading"
       @select="handleMainLogSelect"
+    />
+
+    <!-- 项目选择对话框 -->
+    <ProjectSelectDialog
+      v-model:visible="projectDialogVisible"
+      :projects="availableProjects"
+      :current-project="currentProject?.path"
+      :loading="projectsLoading"
+      @select="handleProjectSelect"
     />
     <div v-if="selectedFileId">
       <a-card title="日志信息" :bordered="false" size="small" class="file-card">
@@ -154,9 +168,10 @@
 import { computed, ref, watch, onMounted } from "vue";
 import { useTimelineStore } from "../stores/timeline";
 import { IconRefresh, IconFilter } from "@arco-design/web-vue/es/icon";
-import { ConversationStep, LogFileInfo, MainLogSummary } from "../types/index";
+import { ConversationStep, LogFileInfo, MainLogSummary, AvailableProjectInfo } from "../types/index";
 import { getNodeColor, getNodeLightColor } from "../utils/colors";
 import MainLogSelectDialog from "./MainLogSelectDialog.vue";
+import ProjectSelectDialog from "./ProjectSelectDialog.vue";
 
 // 统一前端调试开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
 const DEBUG_LOGS = (() => {
@@ -188,6 +203,9 @@ const mainLogsLoading = computed(() => timelineStore.mainLogsLoading);
 const selectedFileId = ref<string | null>(null)
 const currentSessionId = ref<string | null>(null);
 const mainLogDialogVisible = ref(false);
+const projectDialogVisible = ref(false);
+const availableProjects = ref<AvailableProjectInfo[]>([]);
+const projectsLoading = ref(false);
 
 // 节点类型过滤器状态
 const availableStepTypes = [
@@ -320,6 +338,31 @@ const showMainLogDialog = async () => {
 const handleMainLogSelect = async (mainLog: MainLogSummary) => {
   dlog("📋 选择主日志:", mainLog);
   await timelineStore.selectMainLog(mainLog);
+};
+
+// 显示项目选择对话框
+const showProjectDialog = async () => {
+  projectsLoading.value = true;
+  try {
+    // 调用API获取可用项目列表
+    availableProjects.value = await timelineStore.fetchAvailableProjects();
+  } catch (error) {
+    console.error("获取项目列表失败:", error);
+  } finally {
+    projectsLoading.value = false;
+  }
+  projectDialogVisible.value = true;
+};
+
+// 处理项目选择
+const handleProjectSelect = async (projectPath: string) => {
+  dlog("📁 选择项目:", projectPath);
+  try {
+    await timelineStore.switchProject(projectPath);
+    projectDialogVisible.value = false;
+  } catch (error) {
+    console.error("切换项目失败:", error);
+  }
 };
 
 // 组件挂载时检查URL参数

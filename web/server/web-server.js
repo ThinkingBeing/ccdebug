@@ -103,28 +103,8 @@ class WebServer {
         // });
         this.logFileManager = new LogFileManager();
         this.conversationParser = new ConversationParser();
-        //默认从当前项目的.claude-trace/cclog目录获取cc日志文件，如果cclog不存在或没有jsonl文件，再从.claude/projects下获取
-        this.logDir = path.join(config.projectDir, '.claude-trace/cclog');
-        // 检查目录是否存在以及目录中是否有jsonl文件
-        let useDefaultLogDir = true;
-        if (fs.existsSync(this.logDir)) {
-            try {
-                const files = fs.readdirSync(this.logDir);
-                const hasJsonlFiles = files.some(file => file.endsWith('.jsonl'));
-                if (hasJsonlFiles) {
-                    useDefaultLogDir = false;
-                    dlog(`使用默认日志目录: ${this.logDir}，找到 ${files.filter(f => f.endsWith('.jsonl')).length} 个jsonl文件`);
-                }
-            }
-            catch (error) {
-                console.error('读取日志目录失败:', error);
-            }
-        }
-        // 如果目录不存在或没有jsonl文件，则使用resolveLogDirectory
-        if (useDefaultLogDir) {
-            this.logDir = this.logFileManager.resolveLogDirectory(config.projectDir);
-            dlog(`使用备用日志目录: ${this.logDir}`);
-        }
+        // 初始化日志目录
+        this.logDir = this.determineLogDirectory(config.projectDir);
         // 设置ConversationParser的日志目录
         this.conversationParser.setLogDirectory(this.logDir);
         this.setupBasicMiddleware();
@@ -132,6 +112,47 @@ class WebServer {
         this.setupStaticFiles();
         // this.setupWebSocket();
         // this.setupFileWatcher();
+    }
+    /**
+     * 确定日志目录路径
+     * @param projectDir 项目目录路径
+     * @returns 日志目录路径
+     */
+    determineLogDirectory(projectDir) {
+        const os = require('os');
+        const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects');
+        const resolvedProjectDir = path.resolve(projectDir);
+        // 检查项目路径是否在 ~/.claude/projects/ 下
+        const isInClaudeProjects = resolvedProjectDir.startsWith(claudeProjectsDir);
+        if (isInClaudeProjects) {
+            // 如果项目在 ~/.claude/projects/ 下，日志文件直接在项目目录中
+            dlog(`项目在 .claude/projects 下，使用项目目录作为日志目录: ${resolvedProjectDir}`);
+            return resolvedProjectDir;
+        }
+        else {
+            // 如果项目不在 ~/.claude/projects/ 下，先尝试 .claude-trace/cclog
+            const defaultLogDir = path.join(resolvedProjectDir, '.claude-trace/cclog');
+            let useDefaultLogDir = true;
+            if (fs.existsSync(defaultLogDir)) {
+                try {
+                    const files = fs.readdirSync(defaultLogDir);
+                    const hasJsonlFiles = files.some(file => file.endsWith('.jsonl'));
+                    if (hasJsonlFiles) {
+                        useDefaultLogDir = false;
+                        dlog(`使用默认日志目录: ${defaultLogDir}，找到 ${files.filter(f => f.endsWith('.jsonl')).length} 个jsonl文件`);
+                    }
+                }
+                catch (error) {
+                    console.error('读取日志目录失败:', error);
+                }
+            }
+            if (useDefaultLogDir) {
+                const resolvedLogDir = this.logFileManager.resolveLogDirectory(resolvedProjectDir);
+                dlog(`使用备用日志目录: ${resolvedLogDir}`);
+                return resolvedLogDir;
+            }
+            return defaultLogDir;
+        }
     }
     setupBasicMiddleware() {
         // CORS配置
@@ -307,6 +328,104 @@ class WebServer {
                 message: 'Web服务器运行正常'
             };
             res.json(response);
+        });
+        // 获取可用项目列表API
+        this.app.get('/api/projects', async (req, res) => {
+            try {
+                const os = require('os');
+                const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+                // 检查目录是否存在
+                if (!fs.existsSync(projectsDir)) {
+                    return res.json({
+                        success: true,
+                        data: {
+                            projects: [],
+                            defaultProject: this.config.projectDir,
+                            projectsDir: projectsDir
+                        }
+                    });
+                }
+                // 读取所有子目录
+                const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+                const projects = entries
+                    .filter(entry => entry.isDirectory())
+                    .map(entry => {
+                    const projectPath = path.join(projectsDir, entry.name);
+                    return {
+                        path: projectPath,
+                        name: entry.name,
+                        isDefault: path.resolve(projectPath) === path.resolve(this.config.projectDir)
+                    };
+                })
+                    .sort((a, b) => {
+                    // 默认项目排在最前面
+                    if (a.isDefault)
+                        return -1;
+                    if (b.isDefault)
+                        return 1;
+                    return a.name.localeCompare(b.name);
+                });
+                const response = {
+                    success: true,
+                    data: {
+                        projects: projects,
+                        defaultProject: this.config.projectDir,
+                        projectsDir: projectsDir
+                    }
+                };
+                res.json(response);
+            }
+            catch (error) {
+                console.error('获取项目列表失败:', error);
+                const response = {
+                    success: false,
+                    error: error instanceof Error ? error.message : '未知错误'
+                };
+                res.status(500).json(response);
+            }
+        });
+        // 切换项目API
+        this.app.post('/api/project/switch', async (req, res) => {
+            try {
+                const { projectPath } = req.body;
+                if (!projectPath) {
+                    return res.status(400).json({
+                        success: false,
+                        error: '缺少projectPath参数'
+                    });
+                }
+                // 验证项目路径是否存在
+                if (!fs.existsSync(projectPath)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `项目路径不存在: ${projectPath}`
+                    });
+                }
+                // 更新配置
+                this.config.projectDir = path.resolve(projectPath);
+                // 重新确定日志目录
+                this.logDir = this.determineLogDirectory(this.config.projectDir);
+                // 更新ConversationParser的日志目录
+                this.conversationParser.setLogDirectory(this.logDir);
+                console.log(`项目已切换到: ${this.config.projectDir}`);
+                console.log(`日志目录已更新为: ${this.logDir}`);
+                const response = {
+                    success: true,
+                    data: {
+                        projectDir: this.config.projectDir,
+                        logDir: this.logDir
+                    }
+                };
+                res.json(response);
+            }
+            catch (error) {
+                console.error('切换项目失败:', error);
+                const response = {
+                    success: false,
+                    error: error instanceof Error ? error.message : '未知错误'
+                };
+                res.status(500).json(response);
+            }
         });
         // 调试API：获取trace文件列表
         this.app.get('/api/debug/trace-files', async (req, res) => {

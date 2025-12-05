@@ -9,7 +9,9 @@ import {
   ConversationStep,
   FilesApiResponse,
   ApiResponse,
-  MainLogSummary
+  MainLogSummary,
+  AvailableProjectInfo,
+  ProjectsApiResponse
 } from '../types/index'
 
 // 前端调试日志开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
@@ -356,6 +358,60 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
+  // 获取可用项目列表
+  const fetchAvailableProjects = async (): Promise<AvailableProjectInfo[]> => {
+    try {
+      const response = await axios.get<ApiResponse<ProjectsApiResponse>>('/api/projects')
+      if (response.data.success && response.data.data) {
+        dlog(`获取到 ${response.data.data.projects.length} 个可用项目`)
+        return response.data.data.projects
+      }
+      throw new Error(response.data.error || '获取项目列表失败')
+    } catch (err) {
+      console.error('获取项目列表失败:', err)
+      error.value = '获取项目列表失败，请重试'
+      throw err
+    }
+  }
+
+  // 切换项目
+  const switchProject = async (projectPath: string): Promise<void> => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await axios.post<ApiResponse<{ projectDir: string; logDir: string }>>(
+        '/api/project/switch',
+        { projectPath }
+      )
+
+      if (response.data.success && response.data.data) {
+        console.log(`项目已切换到: ${response.data.data.projectDir}`)
+        console.log(`日志目录: ${response.data.data.logDir}`)
+
+        // 切换项目前先清空所有旧数据
+        currentFileId.value = null
+        currentConversation.value = null
+        selectedStep.value = null
+        conversations.value = []
+        availableFiles.value = []
+        mainLogs.value = []
+        selectedMainLog.value = null
+
+        // 切换成功后重新初始化
+        await initialize()
+      } else {
+        throw new Error(response.data.error || '切换项目失败')
+      }
+    } catch (err) {
+      console.error('切换项目失败:', err)
+      error.value = '切换项目失败，请重试'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // 状态
     currentProject,
@@ -385,6 +441,8 @@ export const useTimelineStore = defineStore('timeline', () => {
     clearError,
     disconnect,
     fetchMainLogs,
-    selectMainLog
+    selectMainLog,
+    fetchAvailableProjects,
+    switchProject
   }
 })

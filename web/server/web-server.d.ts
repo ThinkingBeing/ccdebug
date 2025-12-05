@@ -22,6 +22,12 @@ export declare class WebServer {
      */
     private getAuthToken;
     constructor(config: WebServerConfig);
+    /**
+     * 确定日志目录路径
+     * @param projectDir 项目目录路径
+     * @returns 日志目录路径
+     */
+    private determineLogDirectory;
     private setupBasicMiddleware;
     private setupStaticFiles;
     private setupRoutes;
