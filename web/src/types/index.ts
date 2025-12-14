@@ -51,10 +51,12 @@ export interface ConversationStep {
   content: string;
   metadata?: Record<string, any>;
   tool_name?: string;  // 工具名称，用于tool_call类型
-  result?: string;     // 工具结果，用于tool_result类型
-  parameters?: any;    // 工具参数，用于tool_call类型
   tool_use_id?: string; // 工具使用ID，用于关联tool_call和tool_result
+  parameters?: any;    // 工具参数，用于tool_call类型
+  subagent_type?: string; // 子代理类型
+  result?: string;     // 工具结果，用于tool_result类型
   rawLogEntry?: any;   // 原始日志条目，用于详情面板显示完整JSON
+  originalIndex?: number; // 原始步骤索引（从1开始）
 }
 
 // 时间线项目接口

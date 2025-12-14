@@ -49,17 +49,22 @@
                 class="timeline-dot" 
                 :style="{ backgroundColor: getNodeColor(step.type) }"
                 :title="`${getNodeTypeLabel(step.type)} - ${formatTime(step.timestamp)}`"
-              ></div>
+              >
+                <span class="step-number">{{ step.originalIndex }}</span>
+              </div>
               <div v-if="index < processedSteps.length - 1" class="timeline-line"></div>
             </div>
             
             <!-- 内容卡片 -->
             <div class="timeline-content-card" :data-step-id="step.id">
-              <div class="card-header">
-                <span 
-                  class="step-type-tag"
-                  :title="getStepTypeDescription(step.type)"
-                >{{ getNodeTypeLabel(step.type) }}</span>
+              <div class="card-header" @click.stop="handleHeaderClick(step)">
+                <div class="header-left">
+                  <span 
+                    class="step-type-tag"
+                    :title="getStepTypeDescription(step.type)"
+                  >{{ getNodeTypeLabel(step.type) }}</span>
+                  <span v-if="calculateDuration(step)" :class="['duration-tag', calculateDuration(step).class]">{{ calculateDuration(step).text }}</span>
+                </div>
                 <button 
                   v-if="shouldShowExpandButton(step)"
                   class="expand-button"
@@ -101,7 +106,7 @@
                     <br/><span class="tool-name">工具参数：</span>
                   </div>
                   <div class="tool-parameters">
-                    <pre>{{ getDisplayContent(step, JSON.stringify(step.parameters || {}, null, 2)) }}</pre>
+                    <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
                   </div>
                   
                   <!-- 关联的Tool Result显示 -->
@@ -112,7 +117,31 @@
                         <span class="result-type-tag">Tool Result</span>
                       </div>
                       <div class="result-content">
-                        <pre>{{ getToolResultContent(step, isExpanded(step.id)) }}</pre>
+                        <pre v-html="getHighlightedToolResult(step, isExpanded(step.id))"></pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Sub Agent 节点 -->
+                <div v-else-if="step.type === 'agent_child'" class="sub-agent-content">
+                  <div class="sub-agent-header">
+                    <span class="sub-agent-type">子代理类型：{{ step.subagent_type || '未知' }}</span>
+                    <br/><span class="sub-agent-name">调用参数：</span>
+                  </div>
+                  <div class="sub-agent-parameters">
+                    <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
+                  </div>
+                  
+                  <!-- 关联的Tool Result显示 -->
+                  <div v-if="step.toolResult" class="tool-result-container">
+                    <div class="connection-line"></div>
+                    <div class="tool-result-card">
+                      <div class="result-header">
+                        <span class="result-type-tag">Sub Agent Result</span>
+                      </div>
+                      <div class="result-content">
+                        <pre v-html="getHighlightedToolResult(step, isExpanded(step.id))"></pre>
                       </div>
                     </div>
                   </div>
@@ -178,20 +207,21 @@ const processedSteps = computed(() => {
   
   const toolUseMap = new Map<string, ConversationStep & { toolResult?: ConversationStep }>()
   
-  // 第一遍：收集所有tool_call节点并创建扩展对象
+  // 第一遍：收集所有tool_call和agent_child节点并创建扩展对象
   steps.forEach(step => {
-    if (step.type === 'tool_call') {
-      dlog('🔧 找到tool_call步骤:', {
+    if (step.type === 'tool_call' || step.type === 'agent_child') {
+      dlog('🔧 找到工具/子代理步骤:', {
         id: step.id,
         tool_use_id: step.tool_use_id,
-        tool_name: step.tool_name
+        tool_name: step.tool_name,
+        type: step.type
       })
       
       if (step.tool_use_id) {
         toolUseMap.set(step.tool_use_id, { ...step })
       } else {
         // 如果没有tool_use_id，使用步骤id作为fallback
-        dwarn('⚠️ tool_call步骤缺少tool_use_id，使用步骤id作为fallback:', step.id)
+        dwarn('⚠️ 工具/子代理步骤缺少tool_use_id，使用步骤id作为fallback:', step.id)
         toolUseMap.set(step.id, { ...step })
       }
     }
@@ -244,23 +274,24 @@ const processedSteps = computed(() => {
   // 第三遍：按原始顺序处理所有步骤
   const processedStepsList: (ConversationStep & { toolResult?: ConversationStep })[] = []
   steps.forEach(step => {
-    if (step.type === 'tool_call') {
-      // 使用已经关联了toolResult的tool_call步骤
+    if (step.type === 'tool_call' || step.type === 'agent_child') {
+      // 使用已经关联了toolResult的tool_call/agent_child步骤
       const mapKey = step.tool_use_id || step.id
       const enhancedStep = toolUseMap.get(mapKey)
       if (enhancedStep) {
         processedStepsList.push(enhancedStep)
-        dlog('📝 添加tool_call步骤:', {
+        dlog('📝 添加工具/子代理步骤:', {
           id: enhancedStep.id,
+          type: enhancedStep.type,
           hasToolResult: !!enhancedStep.toolResult
         })
       } else {
         processedStepsList.push(step)
-        dlog('📝 添加原始tool_call步骤:', step.id)
+        dlog('📝 添加原始工具/子代理步骤:', { id: step.id, type: step.type })
       }
     } else if (step.type === 'tool_result') {
-      // tool_result步骤已经关联到tool_call，不单独显示
-      dlog('🚫 跳过tool_result步骤，应作为tool_call的子节点:', step.id)
+      // tool_result步骤已经关联到tool_call或agent_child，不单独显示
+      dlog('🚫 跳过tool_result步骤，应作为工具/子代理的子节点:', step.id)
     } else {
       // 其他类型的步骤直接添加
       processedStepsList.push(step)
@@ -291,6 +322,13 @@ const selectStep = (step: ConversationStep) => {
       dlog('📈 Step expanded:', stepId)
     }
   }
+
+// 处理头部点击事件
+const handleHeaderClick = (step: ConversationStep) => {
+  if (shouldShowExpandButton(step)) {
+    toggleExpanded(step.id)
+  }
+}
 
 const isExpanded = (stepId: string) => {
   return expandedSteps.value.has(stepId)
@@ -327,6 +365,90 @@ const getContentForMeasurement = (step: ConversationStep) => {
   return step.content || ''
 }
 
+// 计算工具调用或子代理的耗时
+const calculateDuration = (step: ConversationStep & { toolResult?: ConversationStep }) => {
+  if (!step.toolResult || !step.timestamp || !step.toolResult.timestamp) {
+    return null
+  }
+  
+  try {
+    const startTime = new Date(step.timestamp).getTime()
+    const endTime = new Date(step.toolResult.timestamp).getTime()
+    
+    if (isNaN(startTime) || isNaN(endTime)) {
+      return null
+    }
+    
+    const duration = endTime - startTime // 毫秒
+    let durationText = ''
+    let colorClass = ''
+    
+    // 格式化为中文显示并确定颜色
+    if (duration < 1000) {
+      durationText = `耗时：${duration}毫秒`
+      colorClass = 'duration-fast' // 绿色
+    } else if (duration < 60000) {
+      const seconds = Math.floor(duration / 1000)
+      const milliseconds = duration % 1000
+      if (milliseconds > 0) {
+        durationText = `耗时：${seconds}.${Math.floor(milliseconds / 100)}秒`
+      } else {
+        durationText = `耗时：${seconds}秒`
+      }
+      // 根据秒数确定颜色
+      if (duration < 3000) {
+        colorClass = 'duration-fast' // 绿色
+      } else if (duration < 30000) {
+        colorClass = 'duration-medium' // 蓝色
+      } else {
+        colorClass = 'duration-slow' // 浅红色
+      }
+    } else {
+      const minutes = Math.floor(duration / 60000)
+      const seconds = Math.floor((duration % 60000) / 1000)
+      if (seconds > 0) {
+        durationText = `耗时：${minutes}分${seconds}秒`
+      } else {
+        durationText = `耗时：${minutes}分钟`
+      }
+      // 根据分钟数确定颜色
+      if (duration < 120000) {
+        colorClass = 'duration-slow' // 浅红色
+      } else {
+        colorClass = 'duration-very-slow' // 深红色
+      }
+    }
+    
+    return { text: durationText, class: colorClass }
+  } catch (error) {
+    console.warn('计算耗时失败:', error)
+    return null
+  }
+}
+
+// JSON语法高亮
+const highlightJson = (jsonString: string) => {
+  if (!jsonString) return ''
+  
+  // 直接应用正则表达式高亮，不验证JSON格式
+  // 这样即使截断后的JSON片段也能保持高亮
+  return jsonString
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?)/g, (match) => {
+      // 匹配键和字符串值
+      if (match.endsWith(':')) {
+        // 这是一个键
+        return '<span class="json-key">' + match.slice(0, -1) + '</span>:'
+      } else {
+        // 这是一个字符串值
+        return '<span class="json-string">' + match + '</span>'
+      }
+    })
+    .replace(/\b(true|false)\b/g, '<span class="json-boolean">$1</span>')
+    .replace(/\b(null)\b/g, '<span class="json-null">$1</span>')
+    .replace(/\b(-?\d+\.?\d*)\b/g, '<span class="json-number">$1</span>')
+    .replace(/([{}[\],])/g, '<span class="json-bracket">$1</span>')
+}
+
 // 获取显示内容（根据展开状态决定是否截断）
 const getDisplayContent = (step: ConversationStep, customContent?: string) => {
   const isStepExpanded = isExpanded(step.id)
@@ -356,6 +478,27 @@ const getDisplayContent = (step: ConversationStep, customContent?: string) => {
     return truncateContentByHeight(content, 150)
   }
 }
+
+// 获取高亮显示内容（用于JSON）
+const getHighlightedContent = (step: ConversationStep, customContent?: string) => {
+  // 先获取完整内容
+  let content = customContent
+  if (!content) {
+    content = step.content || ''
+  }
+  
+  // 直接返回高亮后的完整内容，使用CSS控制显示
+  return highlightJson(content)
+}
+
+// 获取Tool Result的高亮内容
+const getHighlightedToolResult = (step: ConversationStep, isExpanded: boolean = false) => {
+  // 先获取Tool Result内容
+  const content = getToolResultContent(step, true) // 总是获取完整内容
+  // 直接返回高亮后的完整内容，使用CSS控制显示
+  return highlightJson(content)
+}
+
 
 // 检查内容是否被截断
 const isContentTruncated = (step: ConversationStep, customContent?: string) => {
@@ -464,8 +607,9 @@ const getNodeTypeLabel = (type: string) => {
     'assistant_message': 'Agent_Message',
     'tool_call': 'Tool_Use',
     'tool_result': 'Tool_Result',
-    'agent_child': 'Agent_Child',
-    'agent_end': 'Agent_End'
+    'agent_child': 'Sub_Agent',
+    'agent_end': 'Sub_Agent',
+    'sub_agent': 'Sub_Agent'
   }
   return labels[type] || type
 }
@@ -485,8 +629,9 @@ const getNodeColor = (type: string) => {
     'assistant_message': '#52c41a',  // 绿色 - AI回复
     'tool_call': '#722ed1',         // 紫色 - 工具调用
     'tool_result': '#13c2c2',       // 青色 - 工具结果
-    'agent_child': '#f5222d',       // 红色 - 子代理
-    'agent_end': '#8c8c8c'          // 灰色 - 对话结束
+    'agent_child': '#eb2f96',       // 粉红色 - 子代理
+    'agent_end': '#eb2f96',         // 粉红色 - 代理结束（合并为子代理）
+    'sub_agent': '#eb2f96'          // 粉红色 - 子代理（统一类型）
   }
   return colors[type] || '#d9d9d9'
 }
@@ -500,7 +645,8 @@ const getStepTypeDescription = (type: string) => {
     'tool_call': '工具调用 - AI助手调用外部工具或函数',
     'tool_result': '工具结果 - 外部工具返回的执行结果',
     'agent_child': '子代理 - 启动的子代理进程',
-    'agent_end': '对话结束 - 当前对话会话结束'
+    'agent_end': '对话结束 - 当前对话会话结束',
+    'sub_agent': '子代理 - 启动的子代理进程'
   }
   return descriptions[type] || type
 }
@@ -525,8 +671,8 @@ const getToolResultContent = (step: ConversationStep, isExpanded: boolean = fals
     rawLogEntry: step.rawLogEntry ? Object.keys(step.rawLogEntry) : []
   })
   
-  // 如果这是一个tool_call步骤且有关联的toolResult，使用toolResult的内容
-  if (step.type === 'tool_call' && step.toolResult) {
+  // 如果这是一个tool_call或agent_child步骤且有关联的toolResult，使用toolResult的内容
+  if ((step.type === 'tool_call' || step.type === 'agent_child') && step.toolResult) {
     dlog('🎯 使用关联的toolResult内容')
     
     // 直接获取toolUseResult并序列化为JSON字符串
@@ -552,7 +698,7 @@ const getToolResultContent = (step: ConversationStep, isExpanded: boolean = fals
     return ''
   }
   
-  // 如果这不是tool_call步骤或没有关联的toolResult，返回空内容
+  // 如果这不是tool_call/agent_child步骤或没有关联的toolResult，返回空内容
   dlog('⚠️ 无法提取Tool Result内容，使用兜底显示')
   return 'No result content available'
 }
@@ -689,12 +835,26 @@ defineExpose({
 }
 
 .timeline-dot {
-  width: 12px;
-  height: 12px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: 2px solid #fff;
   box-shadow: 0 0 0 2px #e8e8e8;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.step-number {
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
 .timeline-line {
@@ -725,6 +885,24 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-header:hover {
+  background-color: #f5f5f5;
+}
+
+.card-header:active {
+  background-color: #e8e8e8;
 }
 
 .step-type-tag {
@@ -734,6 +912,48 @@ defineExpose({
   border-radius: 4px;
   background: #f0f0f0;
   color: #666;
+}
+
+.duration-tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: pulse 2s infinite;
+}
+
+.duration-fast {
+  background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+  box-shadow: 0 2px 4px rgba(82, 196, 26, 0.3);
+}
+
+.duration-medium {
+  background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.3);
+}
+
+.duration-slow {
+  background: linear-gradient(135deg, #ff7875 0%, #ff9c6e 100%);
+  box-shadow: 0 2px 4px rgba(255, 120, 117, 0.3);
+}
+
+.duration-very-slow {
+  background: linear-gradient(135deg, #cf1322 0%, #f5222d 100%);
+  box-shadow: 0 2px 4px rgba(207, 19, 34, 0.3);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  100% {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
 }
 
 .expand-button {
@@ -759,6 +979,29 @@ defineExpose({
   position: relative;
 }
 
+/* 收起状态下的内容高度限制 */
+:deep(.timeline-item:not(.expanded) .tool-parameters pre),
+:deep(.timeline-item:not(.expanded) .sub-agent-parameters pre),
+:deep(.timeline-item:not(.expanded) .result-content pre) {
+  max-height: 150px !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* 收起状态下显示渐变遮罩 */
+:deep(.timeline-item:not(.expanded) .tool-parameters pre::after),
+:deep(.timeline-item:not(.expanded) .sub-agent-parameters pre::after),
+:deep(.timeline-item:not(.expanded) .result-content pre::after) {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(transparent, white);
+  pointer-events: none;
+}
+
 /* 内容区域滚动控制 - 针对具体的内容元素 */
 :deep(.content-text),
 :deep(.tool-parameters),
@@ -773,7 +1016,8 @@ defineExpose({
 
 /* 展开状态下移除高度限制，但Tool Result保持350px限制和滚动条 */
 :deep(.timeline-item.expanded .content-text),
-:deep(.timeline-item.expanded .tool-parameters) {
+:deep(.timeline-item.expanded .tool-parameters),
+:deep(.timeline-item.expanded .sub-agent-parameters) {
   max-height: none !important;
   overflow-y: visible !important;
 }
@@ -957,6 +1201,35 @@ defineExpose({
   text-align: right;
 }
 
+/* JSON语法高亮样式 */
+.json-key {
+  color: #0066cc;
+  font-weight: bold;
+}
+
+.json-string {
+  color: #009900;
+}
+
+.json-number {
+  color: #cc6600;
+}
+
+.json-boolean {
+  color: #cc0066;
+  font-weight: bold;
+}
+
+.json-null {
+  color: #999999;
+  font-weight: bold;
+}
+
+.json-bracket {
+  color: #666666;
+  font-weight: bold;
+}
+
 /* 工具调用内容 */
 .tool-use-content .tool-header {
   margin-bottom: 8px;
@@ -968,8 +1241,26 @@ defineExpose({
   font-size: 12px;
 }
 
+/* 子代理内容样式 */
+.sub-agent-content .sub-agent-header {
+  margin-bottom: 8px;
+}
+
+.sub-agent-type {
+  font-weight: 500;
+  color: #eb2f96;
+  font-size: 12px;
+}
+
+.sub-agent-name {
+  font-weight: 500;
+  color: #eb2f96;
+  font-size: 12px;
+}
+
 /* 展开状态下的tool-parameters样式 */
-.timeline-item:not(.collapsed) .tool-parameters {
+.timeline-item:not(.collapsed) .tool-parameters,
+.timeline-item:not(.collapsed) .sub-agent-parameters {
   background: #f8f8f8;
   border-radius: 4px;
   padding: 8px;
@@ -982,7 +1273,8 @@ defineExpose({
 }
 
 /* 收起状态下的tool-parameters样式 */
-.timeline-item.collapsed .tool-parameters {
+.timeline-item.collapsed .tool-parameters,
+.timeline-item.collapsed .sub-agent-parameters {
   background: #f8f8f8;
   border-radius: 4px;
   padding: 8px;
@@ -991,24 +1283,29 @@ defineExpose({
   overflow: hidden !important;
 }
 
-.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar {
+.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar,
+.timeline-item:not(.collapsed) .sub-agent-parameters::-webkit-scrollbar {
   width: 6px;
 }
 
-.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar-track {
+.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar-track,
+.timeline-item:not(.collapsed) .sub-agent-parameters::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar-thumb {
+.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar-thumb,
+.timeline-item:not(.collapsed) .sub-agent-parameters::-webkit-scrollbar-thumb {
   background-color: #d9d9d9;
   border-radius: 3px;
 }
 
-.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar-thumb:hover {
+.timeline-item:not(.collapsed) .tool-parameters::-webkit-scrollbar-thumb:hover,
+.timeline-item:not(.collapsed) .sub-agent-parameters::-webkit-scrollbar-thumb:hover {
   background-color: #bfbfbf;
 }
 
-.tool-parameters pre {
+.tool-parameters pre,
+.sub-agent-parameters pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;

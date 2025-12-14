@@ -205,8 +205,9 @@ const getStepTypeLabel = (type: string): string => {
     'assistant_message': 'Agent_Message',
     'tool_call': 'Tool_Use',
     'tool_result': 'Tool_Result',
-    'agent_child': 'Agent_Child',
-    'agent_end': 'Agent_End'
+    'agent_child': 'Sub_Agent',
+    'agent_end': 'Sub_Agent',
+    'sub_agent': 'Sub_Agent'
   }
   return labels[type] || type
 }

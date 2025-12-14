@@ -107,6 +107,11 @@ export class ConversationParser {
           allSteps.push(...conv.steps);
         });
         
+        // 重新分配全局步骤索引（从1开始）
+        allSteps.forEach((step, index) => {
+          step.originalIndex = index + 1;
+        });
+        
         return {
           id: fileId,
           timestamp: conversations[0].timestamp,
@@ -159,6 +164,8 @@ export class ConversationParser {
         // 解析步骤
         const step = this.parseStep(logEntry);
         if (step && currentConversation) {
+          // 添加原始步骤索引（从1开始）
+          step.originalIndex = currentConversation.steps.length + 1;
           currentConversation.steps.push(step);
         }
         
@@ -222,6 +229,34 @@ export class ConversationParser {
         // 保存原始日志条目用于详情面板显示
         rawLogEntry: logEntry
       };
+      
+      // 为 agent_child 类型添加 subagent_type 和 tool_use_id 字段
+      if (step.type === 'agent_child' && logEntry.message && logEntry.message.content && Array.isArray(logEntry.message.content)) {
+        const toolUseItems = logEntry.message.content.filter(item => 
+          item.type === 'tool_use' && 
+          item.name === 'Task'
+        );
+        if (toolUseItems.length > 0) {
+          // 设置工具名称为 Task
+          step.tool_name = toolUseItems[0].name;
+          
+          // 设置tool_use_id
+          step.tool_use_id = toolUseItems[0].id;
+          
+          // 设置子代理类型
+          step.subagent_type = toolUseItems[0].input?.subagent_type;
+          
+          // 设置参数
+          if (toolUseItems.length === 1) {
+            step.parameters = toolUseItems[0].input;
+          } else {
+            step.parameters = toolUseItems.map(tool => ({
+              name: tool.name,
+              input: tool.input
+            }));
+          }
+        }
+      }
       
       // 为 tool_call 类型添加 parameters 和 tool_use_id 字段
       if (step.type === 'tool_call' && logEntry.message && logEntry.message.content && Array.isArray(logEntry.message.content)) {
@@ -290,22 +325,29 @@ export class ConversationParser {
       return 'assistant_thinking';
     }
 
+    // Agent_Child/Sub-Agent: message.role=assistant and message.content is array and contains element with type=tool_use && name=Task && input.subagent_type不为空
+    if (logEntry.message?.role === 'assistant' && Array.isArray(logEntry.message?.content)) {
+      const toolUseContent = logEntry.message.content.find((item: any) => 
+        item.type === 'tool_use' && 
+        item.name === 'Task' && 
+        item.input?.subagent_type
+      );
+      if (toolUseContent) {
+        return 'agent_child';
+      }
+    }
+
+    // Tool_Result: message.role=assistant and message.content is array and message.content[0].type=tool_result
+    if (logEntry.message?.role === 'user' && Array.isArray(logEntry.message?.content) && logEntry.message?.content[0]?.type === 'tool_result') {
+      return 'tool_result';
+    }
+
     // Tool_Use: message.role=assistant and message.content is array and message.content[0].type=tool_use
     if (logEntry.message?.role === 'assistant' && Array.isArray(logEntry.message?.content) && logEntry.message?.content[0]?.type === 'tool_use') {
       return 'tool_call';
     }
-    
-    // Tool_Result: message.role=user and message.content is array and message.content[0].type=tool_result
-    if (logEntry.message?.role === 'user' && Array.isArray(logEntry.message?.content) && logEntry.message?.content[0]?.type === 'tool_result') {
-      return 'tool_result';
-    }
-    
-    // Agent_Child: 暂不支持
-    if (false) {
-      return 'agent_child';
-    }
 
-    // Agent_End: 暂不支持
+    // Agent_End: 暂不支持 (保持原有逻辑，可根据需要后续调整)
     if (false) {
       return 'agent_end';
     }

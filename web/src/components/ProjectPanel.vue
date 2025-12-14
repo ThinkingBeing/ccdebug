@@ -91,31 +91,36 @@
             <template #content>
               <div class="step-type-filter">
                 <div class="filter-header">选择要显示的节点类型</div>
-                <a-checkbox-group v-model="selectedStepTypes" direction="vertical">
-                  <a-checkbox 
-                    v-for="stepType in availableStepTypes" 
-                    :key="stepType.value"
-                    :value="stepType.value"
-                  >
-                    <div class="step-type-option">
-                      <div 
-                        class="step-type-color" 
-                        :style="{ backgroundColor: stepType.color }"
-                      ></div>
-                      <span>{{ stepType.label }}</span>
-                    </div>
-                  </a-checkbox>
-                </a-checkbox-group>
+                <a-tree
+                  v-model:checked-keys="checkedKeys"
+                  :data="treeData"
+                  :checkable="true"
+                  :default-expand-all="true"
+                  :show-line="false"
+                  size="mini"
+                  :block-node="true"
+                >
+                  <template #icon="{ node }">
+                    <div 
+                      class="tree-node-color" 
+                      :style="{ 
+                        backgroundColor: node.key.startsWith('tool:') 
+                          ? '#722ed1' 
+                          : availableStepTypes.find(t => t.value === node.key)?.color 
+                      }"
+                    ></div>
+                  </template>
+                </a-tree>
                 <div class="filter-actions">
                   <a-button 
                     size="mini" 
-                    @click="selectedStepTypes = availableStepTypes.map(t => t.value)"
+                    @click="selectAllStepTypes"
                   >
                     全选
                   </a-button>
                   <a-button 
                     size="mini" 
-                    @click="selectedStepTypes = []"
+                    @click="clearAllStepTypes"
                   >
                     清空
                   </a-button>
@@ -126,7 +131,7 @@
               <template #icon>
                 <icon-filter />
               </template>
-              过滤 ({{ selectedStepTypes.length }})
+              过滤 ({{ filteredSteps.length }})
             </a-button>
           </a-popover>
         </template>
@@ -145,7 +150,7 @@
             :title="`${step.type} - ${formatTime(step.timestamp)}`"
             @click="selectStep(step)"
           >
-            <span class="step-index">{{ index + 1 }}</span>
+            <span class="step-index">{{ step.originalIndex }}</span>
           </div>
         </div>
         
@@ -165,13 +170,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from "vue";
-import { useTimelineStore } from "../stores/timeline";
-import { IconRefresh, IconFilter } from "@arco-design/web-vue/es/icon";
-import { ConversationStep, LogFileInfo, MainLogSummary, AvailableProjectInfo } from "../types/index";
-import { getNodeColor, getNodeLightColor } from "../utils/colors";
-import MainLogSelectDialog from "./MainLogSelectDialog.vue";
-import ProjectSelectDialog from "./ProjectSelectDialog.vue";
+import { ref, computed, onMounted, watch, h } from 'vue'
+import { 
+  Button as AButton, 
+  Card as ACard, 
+  Select as ASelect, 
+  Option as AOption,
+  Checkbox as ACheckbox,
+  CheckboxGroup as ACheckboxGroup,
+  Popover as APopover,
+  Empty as AEmpty,
+  Tag as ATag,
+  Tree as ATree
+} from '@arco-design/web-vue'
+import { 
+  IconFilter, 
+  IconDown, 
+  IconUp 
+} from '@arco-design/web-vue/es/icon'
+import MainLogSelectDialog from './MainLogSelectDialog.vue'
+import ProjectSelectDialog from './ProjectSelectDialog.vue'
+import { useTimelineStore } from '../stores/timeline'
+import { getNodeColor, getNodeLightColor } from '../utils/colors'
 
 // 统一前端调试开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
 const DEBUG_LOGS = (() => {
@@ -210,11 +230,10 @@ const projectsLoading = ref(false);
 // 节点类型过滤器状态
 const availableStepTypes = [
   { value: 'user_message', label: '用户消息', color: '#1890ff' },
-  { value: 'assistant_thinking', label: '助手思考', color: '#722ed1' },
+  { value: 'assistant_thinking', label: '助手思考', color: '#faad14' },
   { value: 'assistant_message', label: '助手消息', color: '#52c41a' },
-  { value: 'tool_call', label: '工具调用', color: '#fa8c16' },
-  { value: 'agent_child', label: '代理子节点', color: '#eb2f96' },
-  { value: 'agent_end', label: '代理结束', color: '#f5222d' }
+  { value: 'tool_call', label: '工具调用', color: '#722ed1' },
+  { value: 'sub_agent', label: '子代理', color: '#eb2f96' }
 ];
 
 // 默认选中所有类型（除了tool_result，保持原有行为）
@@ -223,20 +242,109 @@ const selectedStepTypes = ref<string[]>([
   'assistant_thinking', 
   'assistant_message', 
   'tool_call', 
-  'agent_child', 
-  'agent_end'
+  'sub_agent'
 ]);
+
+// Tree组件的选中节点
+const checkedKeys = ref<string[]>([]);
+
+// 动态获取当前会话中所有唯一的工具名称
+const availableToolNames = computed(() => {
+  if (!currentConversation.value?.steps) return [];
+  
+  const toolNames = new Set<string>();
+  currentConversation.value.steps.forEach(step => {
+    if (step.type === 'tool_call' && step.tool_name) {
+      toolNames.add(step.tool_name);
+    }
+  });
+  
+  return Array.from(toolNames).sort();
+});
+
+// 监听availableStepTypes和availableToolNames变化，设置默认选中
+watch([() => availableStepTypes, availableToolNames], ([stepTypes, toolNames]) => {
+  if (stepTypes.length > 0 && checkedKeys.value.length === 0) {
+    // 默认选中所有步骤类型和工具名称
+    const allKeys = stepTypes.map(t => t.value);
+    const toolKeys = toolNames.map(name => `tool:${name}`);
+    checkedKeys.value = [...allKeys, ...toolKeys];
+  }
+}, { immediate: true });
+
+// 构建Tree组件的数据结构
+const treeData = computed(() => {
+  return availableStepTypes.map(stepType => {
+    if (stepType.value === 'tool_call') {
+      // 工具调用类型有子节点
+      return {
+        key: stepType.value,
+        title: stepType.label,
+        children: availableToolNames.value.map(toolName => ({
+          key: `tool:${toolName}`,
+          title: toolName
+        }))
+      };
+    }
+    return {
+      key: stepType.value,
+      title: stepType.label
+    };
+  });
+});
 
 // 计算过滤后的步骤
 const filteredSteps = computed(() => {
   if (!currentConversation.value?.steps) return [];
   
-  return currentConversation.value.steps.filter(step => 
-    selectedStepTypes.value.includes(step.type)
-  );
+  return currentConversation.value.steps.filter(step => {
+    // 将 agent_child 和 agent_end 类型映射为 sub_agent
+    const stepType = step.type === 'agent_child' || step.type === 'agent_end' ? 'sub_agent' : step.type;
+    
+    // 对于工具调用类型，需要特殊处理
+    if (stepType === 'tool_call') {
+      // 获取选中的具体工具
+      const selectedTools = checkedKeys.value
+        .filter(key => key.startsWith('tool:'))
+        .map(key => key.substring(5)); // 移除 'tool:' 前缀
+      
+      // 如果选中了具体的工具，需要进一步过滤
+      if (selectedTools.length > 0) {
+        // 调试：打印日志
+        dlog('过滤工具调用:', {
+          stepToolName: step.tool_name,
+          selectedTools,
+          match: selectedTools.includes(step.tool_name || '')
+        });
+        return selectedTools.includes(step.tool_name || '');
+      }
+      
+      // 如果没有选中具体工具，检查是否选中了工具调用父节点
+      return checkedKeys.value.includes('tool_call');
+    }
+    
+    // 对于其他类型，检查是否被选中
+    return checkedKeys.value.includes(stepType);
+  });
 });
 
-// 监听currentFileId的变化，同步到selectedFileId
+// 全选步骤类型
+const selectAllStepTypes = () => {
+  const allKeys = availableStepTypes.map(t => t.value);
+  // 添加工具名称子节点
+  const toolKeys = availableToolNames.value.map(name => `tool:${name}`);
+  checkedKeys.value = [...allKeys, ...toolKeys];
+};
+
+// 清空步骤类型
+const clearAllStepTypes = () => {
+  checkedKeys.value = [];
+};
+
+// 监听checkedKeys变化，同步到selectedStepTypes（用于显示过滤数量）
+watch(checkedKeys, (keys) => {
+  selectedStepTypes.value = keys.filter(key => !key.startsWith('tool:'));
+}, { immediate: true });
 watch(
   currentFileId,
   (newFileId) => {
@@ -577,34 +685,35 @@ onMounted(() => {
 /* 过滤器样式 */
 .step-type-filter {
   width: 200px;
-  padding: 12px;
+  padding: 0px;
 }
 
 .filter-header {
   font-weight: 500;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: #333;
   font-size: 13px;
 }
 
-.step-type-option {
+.tree-node-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.step-type-color {
+.tree-node-color {
   width: 12px;
   height: 12px;
   border-radius: 2px;
   flex-shrink: 0;
+  display: inline-block;
 }
 
 .filter-actions {
   display: flex;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
   border-top: 1px solid #f0f0f0;
 }
 
