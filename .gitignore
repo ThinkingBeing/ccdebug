@@ -8,3 +8,13 @@ ccdemo/results/**/*.md
 web/server/server
 release
 ccdemo
+
+# TypeScript 编译生成的文件
+web/server/*.js
+web/server/*.d.ts
+web/server/*.js.map
+web/server/*.d.ts.map
+web/server/**/*.js
+web/server/**/*.d.ts
+web/server/**/*.js.map
+web/server/**/*.d.ts.map
