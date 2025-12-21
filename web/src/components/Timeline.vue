@@ -105,7 +105,7 @@
                     <span class="tool-name">工具名称：{{ step.tool_name || '工具调用' }}</span>
                     <br/><span class="tool-name">工具参数：</span>
                   </div>
-                  <div class="tool-parameters">
+                  <div class="tool-parameters" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
                     <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
                   </div>
                   
@@ -116,7 +116,7 @@
                       <div class="result-header">
                         <span class="result-type-tag">Tool Result</span>
                       </div>
-                      <div class="result-content">
+                      <div class="result-content" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
                         <pre v-html="getHighlightedToolResult(step, isExpanded(step.id))"></pre>
                       </div>
                     </div>
@@ -138,7 +138,7 @@
                     <span v-else class="sub-agent-type-text">{{ step.subagent_type || '未知' }}</span>
                     <br/><span class="sub-agent-name">调用参数：</span>
                   </div>
-                  <div class="sub-agent-parameters">
+                  <div class="sub-agent-parameters" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
                     <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
                   </div>
                   
@@ -149,7 +149,7 @@
                       <div class="result-header">
                         <span class="result-type-tag">Sub Agent Result</span>
                       </div>
-                      <div class="result-content">
+                      <div class="result-content" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
                         <pre v-html="getHighlightedToolResult(step, isExpanded(step.id))"></pre>
                       </div>
                     </div>
@@ -1034,10 +1034,10 @@ defineExpose({
   position: relative;
 }
 
-/* 收起状态下显示渐变遮罩 */
-:deep(.timeline-item:not(.expanded) .tool-parameters pre::after),
-:deep(.timeline-item:not(.expanded) .sub-agent-parameters pre::after),
-:deep(.timeline-item:not(.expanded) .result-content pre::after) {
+/* 收起状态下显示渐变遮罩 - 只在实际内容被截断时显示 */
+:deep(.timeline-item:not(.expanded) .tool-parameters.content-truncated pre::after),
+:deep(.timeline-item:not(.expanded) .sub-agent-parameters.content-truncated pre::after),
+:deep(.timeline-item:not(.expanded) .result-content.content-truncated pre::after) {
   content: '';
   position: absolute;
   bottom: 0;
