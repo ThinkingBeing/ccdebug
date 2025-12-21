@@ -30,6 +30,10 @@
           :disabled="availableFiles.length === 0"
           @change="handleFileChange"
           class="file-select"
+          :popup-container="'.file-selector'"
+          :popup-props="{
+            class: 'custom-select-popup'
+          }"
         >
           <a-option
             v-for="file in availableFiles"
@@ -38,7 +42,7 @@
             :label="getFileDisplayName(file)"
           >
             <div class="file-option">
-              <div class="file-name">{{ getFileDisplayName(file) }}</div>
+              <div class="file-name">{{ getFileDisplayName(file) }}<span class="step-count">({{ getFileStepCount(file) }}步)</span></div>
             </div>
           </a-option>
         </a-select>
@@ -431,8 +435,26 @@ const getFileDisplayName = (file: LogFileInfo | any): string => {
   if (file.agentName) {
     return file.agentName;
   }
-  // 否则显示文件名
-  return file.name;
+  // 否则显示文件名（去掉扩展名）
+  const name = file.name;
+  const lastDotIndex = name.lastIndexOf('.');
+  return lastDotIndex > -1 ? name.substring(0, lastDotIndex) : name;
+};
+
+// 获取文件的步骤数量
+const getFileStepCount = (file: LogFileInfo | any): number => {
+  // 优先使用后端返回的stepCount字段
+  if (file.stepCount !== undefined) {
+    return file.stepCount;
+  }
+  
+  // 如果没有stepCount，从 conversations 中查找对应的对话数据（兼容旧逻辑）
+  const conversation = conversations.value.find(c => c.id === file.id);
+  if (conversation?.steps) {
+    // 过滤掉 tool_result 类型，只计算有效步骤
+    return conversation.steps.filter((s) => s.type !== "tool_result").length;
+  }
+  return 0;
 };
 
 // 显示主日志选择对话框
@@ -490,6 +512,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
 }
+.custom-select-popup .arco-select-option-content {
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.4;
+}
 
 .project-info {
   padding: 16px;
@@ -537,14 +564,35 @@ onMounted(() => {
   width: 100%;
 }
 
+/* 增加下拉面板宽度 */
+.file-select :deep(.arco-select-popup) {
+  min-width: 800px !important;
+  width: auto !important;
+}
+
 .file-option {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
 }
 
 .file-name {
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.step-count {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
+  margin-left: 4px;
 }
 
 .no-files {

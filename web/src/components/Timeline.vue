@@ -126,7 +126,16 @@
                 <!-- Sub Agent 节点 -->
                 <div v-else-if="step.type === 'agent_child'" class="sub-agent-content">
                   <div class="sub-agent-header">
-                    <span class="sub-agent-type">子代理类型：{{ step.subagent_type || '未知' }}</span>
+                    <span class="sub-agent-type">子代理类型：</span>
+                    <a 
+                      v-if="step.subagent_type && step.subagent_type !== '未知'"
+                      class="sub-agent-link"
+                      @click.stop="handleSubAgentClick(step)"
+                      :title="`点击跳转到 ${step.subagent_type} 的日志文件`"
+                    >
+                      {{ step.subagent_type }}
+                    </a>
+                    <span v-else class="sub-agent-type-text">{{ step.subagent_type || '未知' }}</span>
                     <br/><span class="sub-agent-name">调用参数：</span>
                   </div>
                   <div class="sub-agent-parameters">
@@ -708,6 +717,43 @@ onMounted(() => {
   // timelineStore.initialize()
 })
 
+// 处理子代理链接点击事件
+const handleSubAgentClick = async (step: ConversationStep) => {
+  if (!step.subagent_type || step.subagent_type === '未知') {
+    return
+  }
+
+  try {
+    // 获取当前选中的主日志信息
+    const mainLog = timelineStore.selectedMainLog
+    if (!mainLog || !mainLog.agentLogs) {
+      console.warn('未找到当前主日志或其子代理日志列表')
+      return
+    }
+
+    // 在主日志的子代理列表中查找匹配的agent日志
+    // 优先通过subagent_type匹配agentName
+    let targetAgentLog = mainLog.agentLogs.find(agent => agent.agentName === step.subagent_type)
+    
+    // 如果没找到，尝试通过rawLogEntry中的agentId匹配
+    if (!targetAgentLog && step.rawLogEntry?.toolUseResult?.agentId) {
+      const agentId = step.rawLogEntry.toolUseResult.agentId
+      targetAgentLog = mainLog.agentLogs.find(agent => agent.agentId === agentId)
+    }
+
+    if (targetAgentLog) {
+      console.log(`跳转到子代理日志: ${targetAgentLog.name} (${targetAgentLog.id})`)
+      // 加载对应的子代理日志文件
+      await timelineStore.loadFile(targetAgentLog.id)
+    } else {
+      console.warn(`未找到匹配的子代理日志: ${step.subagent_type}`)
+      // 可以在这里添加用户提示，比如使用消息组件显示警告
+    }
+  } catch (error) {
+    console.error('跳转到子代理日志失败:', error)
+  }
+}
+
 // 确保所有方法都被正确暴露给模板
 defineExpose({
   formatTime,
@@ -1250,6 +1296,29 @@ defineExpose({
   font-weight: 500;
   color: #eb2f96;
   font-size: 12px;
+}
+
+.sub-agent-type-text {
+  font-weight: 500;
+  color: #eb2f96;
+  font-size: 12px;
+}
+
+.sub-agent-link {
+  font-weight: 500;
+  color: #eb2f96;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sub-agent-link:hover {
+  color: #c41d7f;
+  text-decoration: none;
+  background-color: rgba(235, 47, 150, 0.1);
+  padding: 2px 4px;
+  border-radius: 2px;
 }
 
 .sub-agent-name {

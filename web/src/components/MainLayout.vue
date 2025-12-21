@@ -21,13 +21,19 @@
       <a-layout class="body">
         <!-- 左侧边栏 - 文件选择器 -->
         <a-layout-sider 
-          :width="280" 
+          :width="sidebarWidth" 
           :collapsed="false"
           :collapsible="false"
           class="sidebar"
         >
           <ProjectPanel />
         </a-layout-sider>
+
+        <!-- 左侧拖拽分隔条 -->
+        <div 
+          class="resize-handle resize-handle-left"
+          @mousedown="startResizeSidebar"
+        ></div>
 
         <!-- 主内容区域 -->
         <a-layout-content class="main-content">
@@ -71,9 +77,11 @@ const timelineStore = useTimelineStore()
 // 面板状态
 const detailPanelCollapsed = ref(false)
 const detailPanelWidth = ref(400) // 默认宽度
+const sidebarWidth = ref(280) // 左侧面板默认宽度
 
 // 拖拽状态
 const isResizing = ref(false)
+const isResizingSidebar = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
 
@@ -94,6 +102,18 @@ const startResize = (e: MouseEvent) => {
   document.body.style.userSelect = 'none'
 }
 
+// 拖拽调整左侧面板宽度
+const startResizeSidebar = (e: MouseEvent) => {
+  isResizingSidebar.value = true
+  startX.value = e.clientX
+  startWidth.value = sidebarWidth.value
+  
+  document.addEventListener('mousemove', handleResizeSidebar)
+  document.addEventListener('mouseup', stopResizeSidebar)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
 const handleResize = (e: MouseEvent) => {
   if (!isResizing.value) return
   
@@ -107,10 +127,31 @@ const handleResize = (e: MouseEvent) => {
   detailPanelWidth.value = Math.max(minWidth, Math.min(maxWidth, newWidth))
 }
 
+const handleResizeSidebar = (e: MouseEvent) => {
+  if (!isResizingSidebar.value) return
+  
+  const deltaX = e.clientX - startX.value // 向右拖拽为正值
+  const newWidth = startWidth.value + deltaX
+  
+  // 限制最小和最大宽度
+  const minWidth = 200
+  const maxWidth = window.innerWidth * 0.5
+  
+  sidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, newWidth))
+}
+
 const stopResize = () => {
   isResizing.value = false
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+const stopResizeSidebar = () => {
+  isResizingSidebar.value = false
+  document.removeEventListener('mousemove', handleResizeSidebar)
+  document.removeEventListener('mouseup', stopResizeSidebar)
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
 }
@@ -124,6 +165,8 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mousemove', handleResizeSidebar)
+  document.removeEventListener('mouseup', stopResizeSidebar)
 })
 </script>
 
@@ -198,6 +241,19 @@ onUnmounted(() => {
 }
 
 .resize-handle:hover {
+  background: var(--color-primary);
+}
+
+.resize-handle-left {
+  width: 4px;
+  background: var(--color-border-2);
+  cursor: col-resize;
+  transition: background-color 0.2s;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.resize-handle-left:hover {
   background: var(--color-primary);
 }
 

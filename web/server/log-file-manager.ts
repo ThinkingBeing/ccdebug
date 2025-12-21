@@ -61,12 +61,57 @@ export class LogFileManager {
         const filepath = path.join(logDir, file);
         const stats = await fs.promises.stat(filepath);
         
+        // 计算步骤数量
+        let stepCount = 0;
+        let agentName = null;
+        
+        try {
+          const content = await fs.promises.readFile(filepath, 'utf-8');
+          const lines = content.split('\n').filter(line => line.trim());
+          
+          // 计算步骤数量（与前端显示逻辑保持一致）
+          let hasConversationStarted = false;
+          
+          for (const line of lines) {
+            try {
+              const entry = JSON.parse(line);
+              
+              // 模拟ConversationParser的isConversationStart逻辑
+              const isConversationStart = 
+                entry.type === 'conversation_start' ||
+                (entry.type === 'user' && !entry.parentUuid) ||
+                (!entry.parentUuid && entry.message);
+              
+              if (isConversationStart) {
+                hasConversationStarted = true;
+              }
+              
+              // 跳过conversation_start和llm_request类型
+              // 注意：不过滤message为null的条目，因为ConversationParser会将其处理为assistant_message
+              const isToolResult = entry.message?.content && 
+                                  Array.isArray(entry.message.content) && 
+                                  entry.message.content[0]?.type === 'tool_result';
+              
+              // 只有在对话开始后才计算步骤
+              if (hasConversationStarted && entry.type && entry.type !== 'conversation_start' && entry.type !== 'llm_request' && !isToolResult) {
+                stepCount++;
+              }
+            } catch (e) {
+              // 忽略解析错误的行
+            }
+          }
+        } catch (error) {
+          console.warn(`读取文件 ${file} 失败:`, error);
+        }
+        
         logFiles.push({
           id: file.replace('.jsonl', ''),
           name: file,
           path: filepath,
           modifiedAt: stats.mtime,
-          size: stats.size
+          size: stats.size,
+          stepCount,  // 添加步骤数量
+          agentName  // 添加Agent名称
         });
       }
     }
@@ -471,21 +516,61 @@ export class LogFileManager {
       // 4. 按agentId关联agent名称及agent日志文件
       const agentLogs: any[] = [];
 
-      candidateAgents.forEach((agent, index) => {
+      // 使用 Promise.all 确保所有异步操作完成
+      await Promise.all(candidateAgents.map(async (agent, index) => {
         const task = taskToolUses.find((tUse) => {return tUse.agentId === agent.agentId});
 
         if(task) {
+          // 计算步骤数量
+          let stepCount = 0;
+          
+          try {
+            const content = await fs.promises.readFile(agent.path, 'utf-8');
+            const lines = content.split('\n').filter(line => line.trim());
+            
+            // 计算步骤数量（与前端显示逻辑保持一致）
+            for (const line of lines) {
+              try {
+                const entry = JSON.parse(line);
+                // 跳过conversation_start和llm_request类型
+                // 注意：不过滤message为null的条目，因为ConversationParser会将其处理为assistant_message
+                const isToolResult = entry.message?.content && 
+                                    Array.isArray(entry.message.content) && 
+                                    entry.message.content[0]?.type === 'tool_result';
+                
+                if (entry.type && entry.type !== 'conversation_start' && entry.type !== 'llm_request' && !isToolResult) {
+                  stepCount++;
+                }
+              } catch (e) {
+                // 忽略解析错误的行
+              }
+            }
+          } catch (error) {
+            console.warn(`读取文件 ${agent.file} 失败:`, error);
+          }
+          
+          // 获取文件大小
+          let size = 0;
+          try {
+            const stats = await fs.promises.stat(agent.path);
+            size = stats.size;
+          } catch (error) {
+            console.warn(`获取文件大小失败 ${agent.file}:`, error);
+          }
+          
           agentLogs.push({
           id: agent.file.replace('.jsonl', ''),
           name: agent.file,
           path: agent.path,
           agentId: agent.agentId,
           agentName: task?.agentName ? task.agentName: agent.agentId,
-          agentDescription: task?.description ? task.description : ""
+          agentDescription: task?.description ? task.description : "",
+          stepCount,  // 添加步骤数量
+          modifiedAt: agent.mtime,  // 添加修改时间
+          size  // 文件大小
         });
         }
-        
-      });
+      }));
 
       return agentLogs;
     } catch (error) {

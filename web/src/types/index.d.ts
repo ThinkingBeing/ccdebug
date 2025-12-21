@@ -4,6 +4,8 @@ export interface LogFileInfo {
     path: string;
     modifiedAt: Date;
     size: number;
+    stepCount?: number;  // 步骤数量（可选）
+    agentName?: string;  // Agent名称（子agent日志专用）
 }
 export interface ProjectInfo {
     path: string;
