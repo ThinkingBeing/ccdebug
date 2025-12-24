@@ -59,22 +59,68 @@
             <div class="timeline-content-card" :data-step-id="step.id">
               <div class="card-header" @click.stop="handleHeaderClick(step)">
                 <div class="header-left">
-                  <span 
-                    class="step-type-tag"
-                    :title="getStepTypeDescription(step.type)"
-                  >{{ getNodeTypeLabel(step.type) }}</span>
-                  <span v-if="calculateDuration(step)" :class="['duration-tag', calculateDuration(step).class]">{{ calculateDuration(step).text }}</span>
+                  <!-- 收起状态：显示标签和摘要信息 -->
+                  <template v-if="!isExpanded(step.id) && isCollapsible(step)">
+                    <div class="tag-duration-group">
+                  
+                      <span class="step-type-tag">{{ getNodeTypeLabel(step.type) }}</span>
+                    </div>
+                    <a-tooltip :content="getSummaryTooltip(step)" position="tl" background-color="#3491FA" theme="light">
+                      <span class="summary-text">
+                        <span v-if="step.type === 'tool_call'" class="tool-name-highlight">
+                          {{ step.tool_name || '未知工具' }}
+                        </span>
+                        <span v-else-if="step.type === 'agent_child'" class="subagent-type-highlight">
+                          {{ step.subagent_type || '未知' }}
+                        </span>
+                        <span class="separator"> | </span>
+                        <span v-if="step.type === 'tool_call'" class="tool-specific-info">
+                          {{ getToolSpecificInfo(step) }}
+                        </span>
+                        <span v-else-if="step.type === 'agent_child'" class="subagent-prompt">
+                          {{ extractPromptParam(step.parameters) }}
+                        </span>
+                      </span>
+                    </a-tooltip>
+                    <span v-if="calculateDuration(step)" :class="['duration-tag', calculateDuration(step).class]">{{ calculateDuration(step).text }}</span>
+                  </template>
+                  <!-- 展开状态或其他节点：显示标签和工具名称 -->
+                  <template v-else>
+                    <div class="tag-duration-group">
+                      <span 
+                        v-if="!isCollapsible(step) || isExpanded(step.id)"
+                        class="step-type-tag"
+                        :title="getStepTypeDescription(step.type)"
+                      >{{ getNodeTypeLabel(step.type) }}</span>
+                    </div>
+                    <!-- 展开状态下显示工具名称或子代理类型 -->
+                    <span 
+                      v-if="isExpanded(step.id) && isCollapsible(step)"
+                      class="header-info"
+                    >
+                      <span v-if="step.type === 'tool_call'" class="tool-name-header">
+                        {{ step.tool_name || '未知工具' }}
+                      </span>
+                      <span v-else-if="step.type === 'agent_child'" class="subagent-name-header">
+                        {{ step.subagent_type || '未知' }}
+                      </span>
+                    </span>
+                    <span v-if="calculateDuration(step)" :class="['duration-tag', calculateDuration(step).class]">{{ calculateDuration(step).text }}</span>
+                  </template>
                 </div>
-                <button 
+                <!-- 状态图标 -->
+                <div 
                   v-if="shouldShowExpandButton(step)"
-                  class="expand-button"
+                  class="expand-icon"
                   @click.stop="toggleExpanded(step.id)"
+                  :class="{ 'expanded': isExpanded(step.id) }"
                 >
-                  {{ isExpanded(step.id) ? '收起' : '展开' }}
-                </button>
+                  {{ isExpanded(step.id) ? '▼' : '▶' }}
+                </div>
               </div>
               
               <div 
+                v-if="!isCollapsible(step) || isExpanded(step.id)"
                 class="card-content"
                 :class="{ 
                   'content-collapsed': !isExpanded(step.id) && shouldShowExpandButton(step),
@@ -101,23 +147,26 @@
                 
                 <!-- Tool Use 节点 -->
                 <div v-else-if="step.type === 'tool_call'" class="tool-use-content">
-                  <div class="tool-header">
-                    <span class="tool-name">工具名称：{{ step.tool_name || '工具调用' }}</span>
-                    <br/><span class="tool-name">工具参数：</span>
-                  </div>
-                  <div class="tool-parameters" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
-                    <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
-                  </div>
-                  
-                  <!-- 关联的Tool Result显示 -->
-                  <div v-if="step.toolResult" class="tool-result-container">
-                    <div class="connection-line"></div>
-                    <div class="tool-result-card">
-                      <div class="result-header">
-                        <span class="result-type-tag">Tool Result</span>
-                      </div>
-                      <div class="result-content" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
-                        <pre v-html="getHighlightedToolResult(step, isExpanded(step.id))"></pre>
+                  <!-- 展开状态：显示完整详情 -->
+                  <div v-if="isExpanded(step.id)" class="tool-details-expanded">
+                    <div class="tool-header">
+                      <span class="tool-name">工具名称：{{ step.tool_name || '工具调用' }}</span>
+                      <br/><span class="tool-name">工具参数：</span>
+                    </div>
+                    <div class="tool-parameters">
+                      <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
+                    </div>
+                    
+                    <!-- 关联的Tool Result显示 -->
+                    <div v-if="step.toolResult" class="tool-result-container">
+                      <div class="connection-line"></div>
+                      <div class="tool-result-card">
+                        <div class="result-header">
+                          <span class="result-type-tag">Tool Result</span>
+                        </div>
+                        <div class="result-content">
+                          <pre v-html="getHighlightedToolResult(step, true)"></pre>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -125,32 +174,35 @@
                 
                 <!-- Sub Agent 节点 -->
                 <div v-else-if="step.type === 'agent_child'" class="sub-agent-content">
-                  <div class="sub-agent-header">
-                    <span class="sub-agent-type">子代理类型：</span>
-                    <a 
-                      v-if="step.subagent_type && step.subagent_type !== '未知'"
-                      class="sub-agent-link"
-                      @click.stop="handleSubAgentClick(step)"
-                      :title="`点击跳转到 ${step.subagent_type} 的日志文件`"
-                    >
-                      {{ step.subagent_type }}
-                    </a>
-                    <span v-else class="sub-agent-type-text">{{ step.subagent_type || '未知' }}</span>
-                    <br/><span class="sub-agent-name">调用参数：</span>
-                  </div>
-                  <div class="sub-agent-parameters" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
-                    <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
-                  </div>
-                  
-                  <!-- 关联的Tool Result显示 -->
-                  <div v-if="step.toolResult" class="tool-result-container">
-                    <div class="connection-line"></div>
-                    <div class="tool-result-card">
-                      <div class="result-header">
-                        <span class="result-type-tag">Sub Agent Result</span>
-                      </div>
-                      <div class="result-content" :class="{ 'content-truncated': !isExpanded(step.id) && shouldShowExpandButton(step) && isContentTruncated(step) }">
-                        <pre v-html="getHighlightedToolResult(step, isExpanded(step.id))"></pre>
+                  <!-- 展开状态：显示完整详情 -->
+                  <div v-if="isExpanded(step.id)" class="sub-agent-details-expanded">
+                    <div class="sub-agent-header">
+                      <span class="sub-agent-type">子代理类型：</span>
+                      <a 
+                        v-if="step.subagent_type && step.subagent_type !== '未知'"
+                        class="sub-agent-link"
+                        @click.stop="handleSubAgentClick(step)"
+                        :title="`点击跳转到 ${step.subagent_type} 的日志文件`"
+                      >
+                        {{ step.subagent_type }}
+                      </a>
+                      <span v-else class="sub-agent-type-text">{{ step.subagent_type || '未知' }}</span>
+                      <br/><span class="sub-agent-name">调用参数：</span>
+                    </div>
+                    <div class="sub-agent-parameters">
+                      <pre v-html="getHighlightedContent(step, JSON.stringify(step.parameters || {}, null, 2))"></pre>
+                    </div>
+                    
+                    <!-- 关联的Tool Result显示 -->
+                    <div v-if="step.toolResult" class="tool-result-container">
+                      <div class="connection-line"></div>
+                      <div class="tool-result-card">
+                        <div class="result-header">
+                          <span class="result-type-tag">Sub Agent Result</span>
+                        </div>
+                        <div class="result-content">
+                          <pre v-html="getHighlightedToolResult(step, true)"></pre>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -343,8 +395,18 @@ const isExpanded = (stepId: string) => {
   return expandedSteps.value.has(stepId)
 }
 
-// 判断是否需要显示展开按钮
+// 判断节点是否需要显示展开按钮
 const shouldShowExpandButton = (step: ConversationStep) => {
+  // 用户消息、助手思考、助手消息节点不显示展开按钮
+  if (step.type === 'user_message' || step.type === 'assistant_thought' || step.type === 'assistant_message') {
+    return false
+  }
+  
+  // 对于tool_call和agent_child节点，总是显示展开按钮（因为现在默认收起）
+  if (step.type === 'tool_call' || step.type === 'agent_child') {
+    return true
+  }
+  
   const content = getContentForMeasurement(step)
   if (!content) return false
   
@@ -353,6 +415,146 @@ const shouldShowExpandButton = (step: ConversationStep) => {
   const estimatedHeight = estimatedLines * 20 + 40 // 加上padding
   
   return estimatedHeight > 150 // 超过150px才显示展开按钮
+}
+
+// 判断节点是否可收起（新增方法）
+const isCollapsible = (step: ConversationStep): boolean => {
+  // 只有 tool_call 和 agent_child 类型可收起
+  return step.type === 'tool_call' || step.type === 'agent_child'
+}
+
+// 文本截断工具函数
+const truncateText = (text: string, maxLength: number): string => {
+  if (!text) return ''
+  if (text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '...'
+}
+
+// 提取prompt参数
+const extractPromptParam = (parameters: any): string => {
+  if (!parameters) return ''
+  // 根据实际数据结构提取prompt相关字段
+  return parameters.prompt || parameters.query || parameters.input || parameters.message || ''
+}
+
+// 格式化TodoWrite任务变化
+const formatTodoChanges = (step: ConversationStep): string => {
+  const formatTodos = (todos: any[]) => {
+    if (!Array.isArray(todos)) return '任务总数:0; completed:0; in_progress:0; pending:0'
+    
+    const total = todos.length
+    const completed = todos.filter(t => t.status === 'completed').length
+    const inProgress = todos.filter(t => t.status === 'in_progress').length
+    const pending = todos.filter(t => t.status === 'pending').length
+    
+    return `任务总数:${total}; pending:${pending}; in_progress:${inProgress}; completed:${completed}`
+  }
+  
+  // 尝试从toolResult中获取数据
+  let oldTodos: any[] = []
+  let newTodos: any[] = []
+  
+  if (step.toolResult && step.toolResult.rawLogEntry.toolUseResult) {
+    oldTodos = step.toolResult.rawLogEntry.toolUseResult.oldTodos;
+    newTodos = step.toolResult.rawLogEntry.toolUseResult.newTodos;
+  } else {
+    // 回退到parameters
+    oldTodos = step.parameters?.old_todos || []
+    newTodos = step.parameters?.todos || []
+  }
+  
+  const oldTodosStr = formatTodos(oldTodos)
+  const newTodosStr = formatTodos(newTodos)
+  
+  return `调用前(${oldTodosStr}) -> 调用后(${newTodosStr})`
+}
+
+// 获取工具特定信息
+const getToolSpecificInfo = (step: ConversationStep): string => {
+  const params = step.parameters || {}
+  const toolName = step.tool_name?.toLowerCase() || ''
+  
+  switch (toolName) {
+    case 'edit':
+      return params.filePath || params.file_path || ''
+    
+    case 'glob':
+      return params.pattern || ''
+    
+    case 'grep':
+      const path = params.path || ''
+      const pattern = params.pattern || ''
+      return `${path} | ${pattern}`
+    
+    case 'read':
+      return params.file_path || ''
+    
+    case 'skill':
+      return params.skill || ''
+    
+    case 'todowrite':
+      return formatTodoChanges(step)
+    
+    case 'write':
+      return params.file_path || ''
+    
+    case 'bash':
+      return params.command || ''
+    
+    default:
+      // 默认显示第一个参数的值
+      const firstKey = Object.keys(params)[0]
+      return firstKey ? String(params[firstKey]) : ''
+  }
+}
+
+// 生成摘要文本
+const getSummaryText = (step: ConversationStep): string => {
+  if (step.type === 'agent_child') {
+    // Sub_Agent: 子代理类型 + prompt参数
+    const subagentType = step.subagent_type || '未知'
+    const promptParam = extractPromptParam(step.parameters)
+    return `${subagentType} | ${promptParam}`
+  }
+  
+  if (step.type === 'tool_call') {
+    const toolName = step.tool_name || '未知工具'
+    const specificInfo = getToolSpecificInfo(step)
+    return `${toolName} | ${specificInfo}`
+  }
+  
+  return ''
+}
+
+// 检查文本是否被截断
+const isTextTruncated = (step: ConversationStep): boolean => {
+  const tooltipText = getSummaryTooltip(step)
+  const summaryText = getSummaryText(step)
+  
+  // 如果tooltip内容为空，不需要显示
+  if (!tooltipText) return false
+  
+  // 如果summary文本和tooltip文本相同，说明没有被截断
+  if (summaryText === tooltipText) return false
+  
+  // 如果tooltip文本明显比summary文本长，说明被截断了
+  return tooltipText.length > summaryText.length + 10
+}
+
+// 生成完整提示文本（tooltip）
+const getSummaryTooltip = (step: ConversationStep): string => {
+  if (step.type === 'agent_child') {
+    const promptParam = extractPromptParam(step.parameters)
+    return promptParam || '无参数信息'
+  }
+  
+  if (step.type === 'tool_call') {
+    const params = step.parameters || {}
+    // 返回完整的参数信息
+    return JSON.stringify(params, null, 2)
+  }
+  
+  return ''
 }
 
 // 获取用于测量的内容
@@ -768,10 +970,16 @@ defineExpose({
   toggleExpanded,
   isExpanded,
   shouldShowExpandButton,
+  isCollapsible,
   getContentForMeasurement,
   getDisplayContent,
   isContentTruncated,
-  truncateContentByHeight
+  truncateContentByHeight,
+  truncateText,
+  extractPromptParam,
+  getToolSpecificInfo,
+  getSummaryText,
+  getSummaryTooltip
 })
 </script>
 
@@ -841,6 +1049,7 @@ defineExpose({
 .timeline-wrapper {
   flex: 1;
   padding: 20px;
+  overflow: hidden;
   overflow-y: auto;
 }
 
@@ -853,12 +1062,14 @@ defineExpose({
 
 .timeline-main {
   position: relative;
+  width: 100%;
 }
 
 .timeline-item {
   display: flex;
   margin-bottom: 20px;
   cursor: pointer;
+  min-width: 0;
 }
 
 .timeline-time {
@@ -916,7 +1127,7 @@ defineExpose({
   background: #fff;
   border: 1px solid #e8e8e8;
   border-radius: 8px;
-  padding: 16px;
+  padding: 12px;
   margin-left: 16px;
   transition: all 0.2s ease;
 }
@@ -941,6 +1152,69 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tag-duration-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+}
+
+/* 收起状态下的摘要文本样式 */
+.card-header .summary-text {
+  display: block;
+  flex: 1;
+  max-width: calc(100% - 32px);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+  font-size: 13px;
+  color: #333;
+}
+
+.card-header .summary-text:hover {
+  color: #1890ff;
+}
+
+/* 让摘要文本容器能够自适应宽度 */
+.card-header .summary-text .tool-name-highlight,
+.card-header .summary-text .subagent-type-highlight {
+  display: inline;
+  white-space: nowrap;
+}
+
+.card-header .summary-text .tool-specific-info,
+.card-header .summary-text .subagent-prompt {
+  display: inline;
+  white-space: nowrap;
+}
+
+/* 移除之前的flex布局，改用inline-block */
+.card-header .summary-text span {
+  display: inline;
+}
+
+.tool-name-header {
+  font-weight: 600;
+  color: #722ed1;
+  font-size: 13px;
+}
+
+.subagent-name-header {
+  font-weight: 600;
+  color: #eb2f96;
+  font-size: 13px;
 }
 
 .card-header:hover {
@@ -1002,6 +1276,52 @@ defineExpose({
   }
 }
 
+/* 展开收起状态图标 */
+.expand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  color: #666;
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.expand-icon:hover {
+  background-color: #f0f0f0;
+  color: #1890ff;
+}
+
+.expand-icon svg {
+  transition: transform 0.2s ease;
+}
+
+.expand-icon.expanded svg {
+  transform: rotate(90deg);
+}
+
+.expand-button {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.expand-button:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
 .expand-button {
   background: none;
   border: 1px solid #d9d9d9;
@@ -1023,6 +1343,163 @@ defineExpose({
   font-size: 14px;
   line-height: 1.5;
   position: relative;
+}
+
+/* 用户消息、助手思考、助手消息节点的内容样式 */
+.user-query-content,
+.agent-thought-content,
+.agent-message-content {
+  max-height: 300px;
+  overflow-y: hidden;
+  padding: 8px 0;
+}
+
+.user-query-content .content-text,
+.agent-thought-content .content-text,
+.agent-message-content .content-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 自定义滚动条样式 */
+.user-query-content::-webkit-scrollbar,
+.agent-thought-content::-webkit-scrollbar,
+.agent-message-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.user-query-content::-webkit-scrollbar-track,
+.agent-thought-content::-webkit-scrollbar-track,
+.agent-message-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.user-query-content::-webkit-scrollbar-thumb,
+.agent-thought-content::-webkit-scrollbar-thumb,
+.agent-message-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.user-query-content::-webkit-scrollbar-thumb:hover,
+.agent-thought-content::-webkit-scrollbar-thumb:hover,
+.agent-message-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 收起状态的摘要行样式 */
+.card-summary {
+  padding: 8px 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-summary .step-type-tag {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.summary-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  width:1px;
+  gap: 4px;
+}
+
+.summary-text:hover {
+  color: #1890ff;
+}
+
+/* 突出显示工具名称 */
+.tool-name-highlight {
+  font-weight: 600;
+  color: #722ed1;
+  font-size: 13px;
+}
+
+/* 突出显示子代理类型 */
+.subagent-type-highlight {
+  font-weight: 600;
+  color: #eb2f96;
+  font-size: 13px;
+}
+
+/* 分隔符样式 */
+.separator {
+  color: #999;
+  font-size: 12px;
+  margin: 0 2px;
+}
+
+/* 工具特定信息样式 */
+.tool-specific-info {
+  color: #333;
+  font-size: 12px;
+}
+
+/* 子代理prompt样式 */
+.subagent-prompt {
+  color: #333;
+  font-size: 12px;
+}
+
+/* 展开状态的完整内容样式 */
+.tool-details-expanded,
+.sub-agent-details-expanded {
+  padding: 8px 0;
+}
+
+.tool-details-expanded .tool-parameters,
+.sub-agent-details-expanded .sub-agent-parameters {
+  background: #f8f8f8;
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 12px;
+  max-height: none;
+  overflow-y: visible;
+  margin-top: 8px;
+}
+
+.tool-details-expanded .tool-parameters pre,
+.sub-agent-details-expanded .sub-agent-parameters pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* Tool Result区域保持滚动 */
+.tool-details-expanded .tool-result-container,
+.sub-agent-details-expanded .tool-result-container {
+  position: relative;
+  margin-top: 16px;
+  padding-left: 20px;
+}
+
+.tool-details-expanded .tool-result-container .result-content,
+.sub-agent-details-expanded .tool-result-container .result-content {
+  max-height: 350px;
+  overflow-y: auto;
+  font-size: 12px;
 }
 
 /* 收起状态下的内容高度限制 */

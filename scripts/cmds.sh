@@ -10,6 +10,8 @@ npx --node-options="--inspect-brk=9321" tsx src/cli.ts -l --serve --port 4102 --
 # 启动web（其他目录）
 npx tsx src/cli.ts -l --port 4102 --project /Users/ligf/工作/Code/平台/ccmodeling/platform_ai/x_0338
 
+npx tsx src/cli.ts -l --port 4102 --project /Users/ligf/工作/Code/平台/ccmodeling/platform_ai/x_0338_需求分支
+
 npx --node-options="--inspect-brk=9321" tsx src/cli.ts -l --project /Users/ligf/工作/Code/平台/ccmodeling/platform_ai/x_0338
 
 # 启动cc（快速测试）
