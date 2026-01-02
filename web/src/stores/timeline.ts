@@ -11,7 +11,9 @@ import {
   ApiResponse,
   MainLogSummary,
   AvailableProjectInfo,
-  ProjectsApiResponse
+  ProjectsApiResponse,
+  FileSearchResult,
+  SearchResultItem
 } from '../types/index'
 
 // 前端调试日志开关：URL ?debug=1 或 localStorage.CCDEBUG_DEBUG=1
@@ -39,6 +41,14 @@ export const useTimelineStore = defineStore('timeline', () => {
   const mainLogs = ref<MainLogSummary[]>([])
   const selectedMainLog = ref<MainLogSummary | null>(null)
   const mainLogsLoading = ref(false)
+
+  // 搜索相关状态
+  const searchKeyword = ref<string>('')
+  const searchResults = ref<FileSearchResult[]>([])
+  const searchLoading = ref(false)
+
+  // 展开状态管理
+  const expandedSteps = ref<Set<string>>(new Set())
 
   // 计算属性
   const currentConversationData = computed(() => {
@@ -412,6 +422,238 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
+  // 搜索功能：在当前主日志及其所有子代理日志中搜索
+  const performSearch = async (keyword: string): Promise<FileSearchResult[]> => {
+    if (!keyword.trim()) {
+      return []
+    }
+
+    searchLoading.value = true
+    searchKeyword.value = keyword
+    const results: FileSearchResult[] = []
+
+    try {
+      // 获取当前主日志及其所有关联的子代理日志
+      const filesToSearch: { fileId: string; fileName: string; isSubAgent: boolean }[] = []
+      
+      // 添加主日志
+      if (selectedMainLog.value) {
+        filesToSearch.push({
+          fileId: selectedMainLog.value.id,
+          fileName: selectedMainLog.value.name,
+          isSubAgent: false
+        })
+        
+        // 添加所有子代理日志
+        if (selectedMainLog.value.agentLogs && selectedMainLog.value.agentLogs.length > 0) {
+          selectedMainLog.value.agentLogs.forEach(agentLog => {
+            filesToSearch.push({
+              fileId: agentLog.id,
+              fileName: agentLog.agentName || agentLog.name,
+              isSubAgent: true
+            })
+          })
+        }
+      } else if (currentFileId.value) {
+        // 如果没有选中主日志，只搜索当前文件
+        const currentFile = availableFiles.value.find(f => f.id === currentFileId.value)
+        if (currentFile) {
+          filesToSearch.push({
+            fileId: currentFile.id,
+            fileName: currentFile.name,
+            isSubAgent: false
+          })
+        }
+      }
+
+      // 对每个文件进行搜索
+      for (const file of filesToSearch) {
+        const fileResults = await searchInFile(file.fileId, file.fileName, file.isSubAgent, keyword)
+        if (fileResults.resultCount > 0) {
+          results.push(fileResults)
+        }
+      }
+
+      searchResults.value = results
+      return results
+    } catch (err) {
+      console.error('搜索失败:', err)
+      throw err
+    } finally {
+      searchLoading.value = false
+    }
+  }
+
+  // 在单个文件中搜索
+  const searchInFile = async (
+    fileId: string, 
+    fileName: string, 
+    isSubAgent: boolean, 
+    keyword: string
+  ): Promise<FileSearchResult> => {
+    const fileResult: FileSearchResult = {
+      fileId,
+      fileName,
+      isSubAgent,
+      resultCount: 0,
+      results: []
+    }
+
+    try {
+      // 加载文件数据
+      const response = await axios.get<ApiResponse<ConversationData>>(`/api/conversations/${fileId}`)
+      
+      if (!response.data.success || !response.data.data) {
+        return fileResult
+      }
+
+      const conversation = response.data.data
+      const keywords = keyword.toLowerCase().split(/\s+/).filter(k => k.length > 0)
+
+      // 遍历所有步骤进行搜索
+      conversation.steps.forEach((step, index) => {
+        const matches = searchInStep(step, keywords, fileId, fileName)
+        fileResult.results.push(...matches)
+      })
+
+      fileResult.resultCount = fileResult.results.length
+      return fileResult
+    } catch (err) {
+      console.error(`搜索文件 ${fileId} 失败:`, err)
+      return fileResult
+    }
+  }
+
+  // 在单个步骤中搜索
+  const searchInStep = (
+    step: ConversationStep, 
+    keywords: string[], 
+    fileId: string, 
+    fileName: string
+  ): SearchResultItem[] => {
+    const results: SearchResultItem[] = []
+
+    // 搜索内容字段
+    if (step.content) {
+      const contentLower = step.content.toLowerCase()
+      if (keywords.every(kw => contentLower.includes(kw))) {
+        const matchedContent = extractMatchedContent(step.content, keywords[0])
+        results.push({
+          stepId: step.id,
+          stepType: step.type,
+          stepIndex: step.originalIndex || 0,
+          timestamp: step.timestamp,
+          matchedContent,
+          matchedField: 'content',
+          fileId,
+          fileName,
+          tool_use_id: step.tool_use_id
+        })
+      }
+    }
+
+    // 搜索工具参数
+    // if (step.parameters) {
+    //   const paramsStr = JSON.stringify(step.parameters).toLowerCase()
+    //   if (keywords.every(kw => paramsStr.includes(kw))) {
+    //     const matchedContent = extractMatchedContent(JSON.stringify(step.parameters, null, 2), keywords[0])
+    //     results.push({
+    //       stepId: step.id,
+    //       stepType: step.type,
+    //       stepIndex: step.originalIndex || 0,
+    //       timestamp: step.timestamp,
+    //       matchedContent,
+    //       matchedField: 'parameters',
+    //       fileId,
+    //       fileName,
+    //       tool_use_id: step.tool_use_id
+    //     })
+    //   }
+    // }
+
+    // // 搜索元数据
+    // if (step.metadata) {
+    //   const metadataStr = JSON.stringify(step.metadata).toLowerCase()
+    //   if (keywords.every(kw => metadataStr.includes(kw))) {
+    //     const matchedContent = extractMatchedContent(JSON.stringify(step.metadata, null, 2), keywords[0])
+    //     results.push({
+    //       stepId: step.id,
+    //       stepType: step.type,
+    //       stepIndex: step.originalIndex || 0,
+    //       timestamp: step.timestamp,
+    //       matchedContent,
+    //       matchedField: 'metadata',
+    //       fileId,
+    //       fileName,
+    //       tool_use_id: step.tool_use_id
+    //     })
+    //   }
+    // }
+
+    // // 搜索原始日志
+    // if (step.rawLogEntry) {
+    //   const rawLogStr = JSON.stringify(step.rawLogEntry).toLowerCase()
+    //   if (keywords.every(kw => rawLogStr.includes(kw))) {
+    //     // 如果在其他字段已经找到了，就不重复添加原始日志的结果
+    //     if (results.length === 0) {
+    //       const matchedContent = extractMatchedContent(JSON.stringify(step.rawLogEntry, null, 2), keywords[0])
+    //       results.push({
+    //         stepId: step.id,
+    //         stepType: step.type,
+    //         stepIndex: step.originalIndex || 0,
+    //         timestamp: step.timestamp,
+    //         matchedContent,
+    //         matchedField: 'rawLogEntry',
+    //         fileId,
+    //         fileName,
+    //         tool_use_id: step.tool_use_id
+    //       })
+    //     }
+    //   }
+    // }
+
+    return results
+  }
+
+  // 提取匹配内容的上下文（前后各50个字符）
+  const extractMatchedContent = (text: string, keyword: string): string => {
+    const lowerText = text.toLowerCase()
+    const lowerKeyword = keyword.toLowerCase()
+    const index = lowerText.indexOf(lowerKeyword)
+    
+    if (index === -1) {
+      return text.substring(0, 100) + (text.length > 100 ? '...' : '')
+    }
+
+    const start = Math.max(0, index - 50)
+    const end = Math.min(text.length, index + keyword.length + 50)
+    
+    let result = text.substring(start, end)
+    if (start > 0) result = '...' + result
+    if (end < text.length) result = result + '...'
+    
+    return result
+  }
+
+  // 展开/收起相关方法
+  const toggleExpanded = (stepId: string) => {
+    if (expandedSteps.value.has(stepId)) {
+      expandedSteps.value.delete(stepId)
+    } else {
+      expandedSteps.value.add(stepId)
+    }
+  }
+
+  const isExpanded = (stepId: string) => {
+    return expandedSteps.value.has(stepId)
+  }
+
+  const ensureStepExpanded = (stepId: string) => {
+    if (!expandedSteps.value.has(stepId)) {
+      expandedSteps.value.add(stepId)
+    }
+  }
+
   return {
     // 状态
     currentProject,
@@ -425,6 +667,10 @@ export const useTimelineStore = defineStore('timeline', () => {
     mainLogs,
     selectedMainLog,
     mainLogsLoading,
+    searchKeyword,
+    searchResults,
+    searchLoading,
+    expandedSteps,
 
     // 计算属性
     currentConversationData,
@@ -443,6 +689,10 @@ export const useTimelineStore = defineStore('timeline', () => {
     fetchMainLogs,
     selectMainLog,
     fetchAvailableProjects,
-    switchProject
+    switchProject,
+    performSearch,
+    toggleExpanded,
+    isExpanded,
+    ensureStepExpanded
   }
 })

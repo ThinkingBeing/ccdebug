@@ -118,3 +118,25 @@ export interface ProjectsApiResponse {
   defaultProject: string;
   projectsDir: string;
 }
+
+// 搜索结果项
+export interface SearchResultItem {
+  stepId: string;           // 步骤ID
+  stepType: string;         // 步骤类型
+  stepIndex: number;        // 步骤序号
+  timestamp: string;        // 时间戳
+  matchedContent: string;   // 匹配的内容片段
+  matchedField: string;     // 匹配的字段路径（如 content、metadata.xxx）
+  fileId: string;           // 所属文件ID
+  fileName: string;         // 文件名称
+  tool_use_id?: string;     // 工具调用ID（用于关联 tool_call/tool_result 和 agent_child）
+}
+
+// 文件级搜索结果
+export interface FileSearchResult {
+  fileId: string;           // 文件ID
+  fileName: string;         // 文件名称
+  isSubAgent: boolean;      // 是否为子代理日志
+  resultCount: number;      // 结果数量
+  results: SearchResultItem[]; // 搜索结果列表
+}

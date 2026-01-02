@@ -6,13 +6,6 @@
         <div class="header-content">
           <h1 class="title">Claude Code Debug</h1>
           <div class="header-actions">
-            <a-button 
-              type="text" 
-              @click="toggleDetailPanel"
-              :icon="detailPanelCollapsed ? 'icon-right' : 'icon-left'"
-            >
-              {{ detailPanelCollapsed ? '显示详情' : '隐藏详情' }}
-            </a-button>
           </div>
         </div>
       </a-layout-header>
@@ -76,8 +69,8 @@ const timelineStore = useTimelineStore()
 
 // 面板状态
 const detailPanelCollapsed = ref(false)
-const detailPanelWidth = ref(400) // 默认宽度
-const sidebarWidth = ref(280) // 左侧面板默认宽度
+const detailPanelWidth = ref(500) // 默认宽度
+const sidebarWidth = ref(360) // 左侧面板默认宽度
 
 // 拖拽状态
 const isResizing = ref(false)
@@ -272,5 +265,6 @@ onUnmounted(() => {
   overflow: hidden;
   min-width: 300px;
   max-width: 60vw;
+  height: 100%;
 }
 </style>

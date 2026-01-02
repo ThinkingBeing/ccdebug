@@ -33,7 +33,7 @@
               { 
                 'selected': selectedStep?.id === step.id,
                 'has-tool-result': step.toolResult,
-                'expanded': isExpanded(step.id)
+                'expanded': timelineStore.isExpanded(step.id)
               }
             ]"
             @click="selectStep(step)"
@@ -60,7 +60,7 @@
               <div class="card-header" @click.stop="handleHeaderClick(step)">
                 <div class="header-left">
                   <!-- 收起状态：显示标签和摘要信息 -->
-                  <template v-if="!isExpanded(step.id) && isCollapsible(step)">
+                  <template v-if="!timelineStore.isExpanded(step.id) && isCollapsible(step)">
                     <div class="tag-duration-group">
                   
                       <span class="step-type-tag">{{ getNodeTypeLabel(step.type) }}</span>
@@ -88,14 +88,14 @@
                   <template v-else>
                     <div class="tag-duration-group">
                       <span 
-                        v-if="!isCollapsible(step) || isExpanded(step.id)"
+                        v-if="!isCollapsible(step) || timelineStore.isExpanded(step.id)"
                         class="step-type-tag"
                         :title="getStepTypeDescription(step.type)"
                       >{{ getNodeTypeLabel(step.type) }}</span>
                     </div>
                     <!-- 展开状态下显示工具名称或子代理类型 -->
                     <span 
-                      v-if="isExpanded(step.id) && isCollapsible(step)"
+                      v-if="timelineStore.isExpanded(step.id) && isCollapsible(step)"
                       class="header-info"
                     >
                       <span v-if="step.type === 'tool_call'" class="tool-name-header">
@@ -112,24 +112,24 @@
                 <div 
                   v-if="shouldShowExpandButton(step)"
                   class="expand-icon"
-                  @click.stop="toggleExpanded(step.id)"
-                  :class="{ 'expanded': isExpanded(step.id) }"
+                  @click.stop="timelineStore.toggleExpanded(step.id)"
+                  :class="{ 'expanded': timelineStore.isExpanded(step.id) }"
                 >
-                  {{ isExpanded(step.id) ? '▼' : '▶' }}
+                  {{ timelineStore.isExpanded(step.id) ? '▼' : '▶' }}
                 </div>
               </div>
               
               <div 
-                v-if="!isCollapsible(step) || isExpanded(step.id)"
+                v-if="!isCollapsible(step) || timelineStore.isExpanded(step.id)"
                 class="card-content"
                 :class="{ 
-                  'content-collapsed': !isExpanded(step.id) && shouldShowExpandButton(step),
-                  'content-expanded': isExpanded(step.id)
+                  'content-collapsed': !timelineStore.isExpanded(step.id) && shouldShowExpandButton(step),
+                  'content-expanded': timelineStore.isExpanded(step.id)
                 }"
               >
                 <!-- User Query 节点 -->
                 <div v-if="step.type === 'user_message'" class="user-query-content">
-                  <div class="content-text">{{ getDisplayContent(step) }}</div>
+                  <div class="content-text" v-html="getDisplayContent(step)"></div>
                 </div>
                 
                 <!-- Agent Thinking 节点 -->
@@ -137,18 +137,18 @@
                   <div class="thinking-indicator">
                     <span>思考中...</span>
                   </div>
-                  <div class="content-text">{{ getDisplayContent(step) }}</div>
+                  <div class="content-text" v-html="getDisplayContent(step)"></div>
                 </div>
                 
                 <!-- Agent Message 节点 -->
                 <div v-else-if="step.type === 'assistant_message'" class="agent-message-content">
-                  <div class="content-text">{{ getDisplayContent(step) }}</div>
+                  <div class="content-text" v-html="getDisplayContent(step)"></div>
                 </div>
                 
                 <!-- Tool Use 节点 -->
                 <div v-else-if="step.type === 'tool_call'" class="tool-use-content">
                   <!-- 展开状态：显示完整详情 -->
-                  <div v-if="isExpanded(step.id)" class="tool-details-expanded">
+                  <div v-if="timelineStore.isExpanded(step.id)" class="tool-details-expanded">
                     <div class="tool-header">
                       <span class="tool-name">工具名称：{{ step.tool_name || '工具调用' }}</span>
                       <br/><span class="tool-name">工具参数：</span>
@@ -175,7 +175,7 @@
                 <!-- Sub Agent 节点 -->
                 <div v-else-if="step.type === 'agent_child'" class="sub-agent-content">
                   <!-- 展开状态：显示完整详情 -->
-                  <div v-if="isExpanded(step.id)" class="sub-agent-details-expanded">
+                  <div v-if="timelineStore.isExpanded(step.id)" class="sub-agent-details-expanded">
                     <div class="sub-agent-header">
                       <span class="sub-agent-type">子代理类型：</span>
                       <a 
@@ -210,7 +210,7 @@
                 
                 <!-- 默认节点 -->
                 <div v-else class="default-content">
-                  <div class="content-text">{{ getDisplayContent(step) }}</div>
+                  <div class="content-text" v-html="getDisplayContent(step)"></div>
                 </div>
               </div>
             </div>
@@ -255,9 +255,9 @@ const loading = computed(() => timelineStore.loading)
 const conversations = computed(() => timelineStore.conversations)
 const currentConversation = computed(() => timelineStore.currentConversation)
 const selectedStep = computed(() => timelineStore.selectedStep)
+const searchKeyword = computed(() => timelineStore.searchKeyword)
 
-// 展开状态管理
-const expandedSteps = ref<Set<string>>(new Set())
+// 展开状态管理现在使用 store 中的状态
 
 // 计算属性：处理步骤数据，将tool_result与tool_use关联
 const processedSteps = computed(() => {
@@ -373,26 +373,11 @@ const selectStep = (step: ConversationStep) => {
 
 // 展开/收起功能
 // 在模板中调用getDisplayContent时也添加调试信息
-  const toggleExpanded = (stepId: string) => {
-    dlog('🔄 toggleExpanded called:', stepId)
-    if (expandedSteps.value.has(stepId)) {
-      expandedSteps.value.delete(stepId)
-      dlog('📉 Step collapsed:', stepId)
-    } else {
-      expandedSteps.value.add(stepId)
-      dlog('📈 Step expanded:', stepId)
-    }
-  }
-
-// 处理头部点击事件
+  // 处理头部点击事件
 const handleHeaderClick = (step: ConversationStep) => {
   if (shouldShowExpandButton(step)) {
-    toggleExpanded(step.id)
+    timelineStore.toggleExpanded(step.id)
   }
-}
-
-const isExpanded = (stepId: string) => {
-  return expandedSteps.value.has(stepId)
 }
 
 // 判断节点是否需要显示展开按钮
@@ -637,32 +622,54 @@ const calculateDuration = (step: ConversationStep & { toolResult?: ConversationS
   }
 }
 
+// 高亮搜索关键字
+const highlightSearchKeyword = (text: string): string => {
+  if (!searchKeyword.value || !text) return text
+  
+  const keyword = searchKeyword.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${keyword})`, 'gi')
+  return text.replace(regex, '<mark class="search-highlight-keyword">$1</mark>')
+}
+
 // JSON语法高亮
 const highlightJson = (jsonString: string) => {
   if (!jsonString) return ''
   
-  // 直接应用正则表达式高亮，不验证JSON格式
-  // 这样即使截断后的JSON片段也能保持高亮
-  return jsonString
-    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?)/g, (match) => {
-      // 匹配键和字符串值
-      if (match.endsWith(':')) {
-        // 这是一个键
-        return '<span class="json-key">' + match.slice(0, -1) + '</span>:'
-      } else {
-        // 这是一个字符串值
-        return '<span class="json-string">' + match + '</span>'
+  // 访问 searchKeyword 以建立响应式依赖
+  const currentKeyword = searchKeyword.value
+  
+  // 如果有搜索关键字，先高亮搜索关键字
+  let highlighted = jsonString
+  if (currentKeyword) {
+    highlighted = highlightSearchKeyword(jsonString)
+  }
+  
+  // 然后应用JSON语法高亮
+  return highlighted
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+      let cls = 'json-number';
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          cls = 'json-key';
+        } else {
+          cls = 'json-string';
+        }
+      } else if (/true|false/.test(match)) {
+        cls = 'json-boolean';
+      } else if (/null/.test(match)) {
+        cls = 'json-null';
       }
+      return '<span class="' + cls + '">' + match + '</span>';
     })
-    .replace(/\b(true|false)\b/g, '<span class="json-boolean">$1</span>')
-    .replace(/\b(null)\b/g, '<span class="json-null">$1</span>')
-    .replace(/\b(-?\d+\.?\d*)\b/g, '<span class="json-number">$1</span>')
     .replace(/([{}[\],])/g, '<span class="json-bracket">$1</span>')
 }
 
 // 获取显示内容（根据展开状态决定是否截断）
 const getDisplayContent = (step: ConversationStep, customContent?: string) => {
-  const isStepExpanded = isExpanded(step.id)
+  // 访问 searchKeyword 以建立响应式依赖
+  const currentKeyword = searchKeyword.value
+  
+  const isStepExpanded = timelineStore.isExpanded(step.id)
   
   // 根据step类型获取内容
   let content = customContent
@@ -676,18 +683,18 @@ const getDisplayContent = (step: ConversationStep, customContent?: string) => {
     }
   }
   
-  if (!shouldShowExpandButton(step)) {
-    // 不需要展开按钮的内容，直接返回完整内容
-    return content
+  // 如果是展开状态，显示完整内容
+  if (isStepExpanded) {
+    return highlightSearchKeyword(content)
   }
   
-  if (isStepExpanded) {
-    // 展开状态：显示完整内容，不截断
-    return content
-  } else {
-    // 收起状态：显示部分内容
-    return truncateContentByHeight(content, 150)
+  // 如果是收起状态，显示截断内容
+  if (shouldShowExpandButton(step)) {
+    return highlightSearchKeyword(truncateContentByHeight(content, 150))
   }
+  
+  // 对于不需要展开按钮的内容，检查是否超过350px高度
+  return highlightSearchKeyword(truncateContentByHeight(content, 350))
 }
 
 // 获取高亮显示内容（用于JSON）
@@ -733,7 +740,7 @@ const isContentTruncated = (step: ConversationStep, customContent?: string) => {
     return content.length > maxChars
   }
   
-  if (isExpanded(step.id)) {
+  if (timelineStore.isExpanded(step.id)) {
     // 展开状态：检查是否超过350px高度
     const maxLines = Math.floor((350 - 40) / 20)
     const maxChars = maxLines * 50
@@ -944,15 +951,11 @@ const handleSubAgentClick = async (step: ConversationStep) => {
     }
 
     if (targetAgentLog) {
-      console.log(`跳转到子代理日志: ${targetAgentLog.name} (${targetAgentLog.id})`)
-      // 加载对应的子代理日志文件
-      await timelineStore.loadFile(targetAgentLog.id)
-    } else {
-      console.warn(`未找到匹配的子代理日志: ${step.subagent_type}`)
-      // 可以在这里添加用户提示，比如使用消息组件显示警告
+      // 加载子代理日志
+      timelineStore.loadFile(targetAgentLog.id)
     }
   } catch (error) {
-    console.error('跳转到子代理日志失败:', error)
+    console.error('加载子代理日志失败:', error)
   }
 }
 
@@ -967,10 +970,8 @@ defineExpose({
   getToolResultContent,
   selectConversation,
   selectStep,
-  toggleExpanded,
-  isExpanded,
-  shouldShowExpandButton,
   isCollapsible,
+  shouldShowExpandButton,
   getContentForMeasurement,
   getDisplayContent,
   isContentTruncated,
@@ -979,7 +980,8 @@ defineExpose({
   extractPromptParam,
   getToolSpecificInfo,
   getSummaryText,
-  getSummaryTooltip
+  getSummaryTooltip,
+  handleSubAgentClick
 })
 </script>
 
@@ -1725,32 +1727,36 @@ defineExpose({
 }
 
 /* JSON语法高亮样式 */
-.json-key {
+:deep(.json-key) {
   color: #0066cc;
-  font-weight: bold;
 }
 
-.json-string {
+:deep(.json-string) {
   color: #009900;
 }
 
-.json-number {
+:deep(.json-number) {
   color: #cc6600;
 }
 
-.json-boolean {
+:deep(.json-boolean) {
   color: #cc0066;
-  font-weight: bold;
 }
 
-.json-null {
+:deep(.json-null) {
   color: #999999;
-  font-weight: bold;
 }
 
-.json-bracket {
+:deep(.json-bracket) {
   color: #666666;
-  font-weight: bold;
+}
+
+/* 搜索关键字高亮样式 */
+:deep(.search-highlight-keyword) {
+  background-color: #fffb8f;
+  color: #d32f2f;
+  padding: 1px 2px;
+  border-radius: 2px;
 }
 
 /* 工具调用内容 */
