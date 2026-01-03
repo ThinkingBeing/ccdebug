@@ -8,16 +8,28 @@
     @cancel="handleCancel"
   >
     <div class="project-select-dialog">
-      <a-alert v-if="!props.loading && props.projects.length === 0" type="warning" style="margin-bottom: 16px">
-        未找到可用项目。请确认用户主目录下存在 <code>~/.claude/projects</code> 目录。
+      <!-- 搜索框 -->
+      <div class="search-container">
+        <a-input-search
+          v-model="searchKeyword"
+          placeholder="请输入项目名称进行搜索"
+          allow-clear
+          @clear="handleSearchClear"
+          @search="handleSearch"
+          style="margin-bottom: 16px"
+        />
+      </div>
+
+      <a-alert v-if="!props.loading && filteredProjects.length === 0" type="warning" style="margin-bottom: 16px">
+        {{ searchKeyword ? '未找到匹配的项目' : '未找到可用项目' }}。请确认用户主目录下存在 <code>~/.claude/projects</code> 目录。
       </a-alert>
 
       <a-table
         :columns="columns"
-        :data="props.projects"
+        :data="filteredProjects"
         :loading="props.loading"
         :pagination="false"
-        :scroll="{ y: 400 }"
+        :scroll="{ y: 500 }"
         row-key="path"
         :row-selection="rowSelection"
         v-model:selected-keys="selectedKeys"
@@ -64,6 +76,22 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+// 搜索关键词
+const searchKeyword = ref('')
+
+// 过滤后的项目列表
+const filteredProjects = computed(() => {
+  if (!searchKeyword.value.trim()) {
+    return props.projects
+  }
+  
+  const keyword = searchKeyword.value.toLowerCase()
+  return props.projects.filter(project => 
+    project.name.toLowerCase().includes(keyword) ||
+    project.path.toLowerCase().includes(keyword)
+  )
+})
+
 // 内部可见性状态
 const dialogVisible = computed({
   get: () => props.visible,
@@ -97,12 +125,22 @@ const rowSelection = {
 // 监听选择变化
 watch(selectedKeys, (newKeys) => {
   if (newKeys.length > 0) {
-    const record = props.projects.find(project => project.path === newKeys[0])
+    const record = filteredProjects.value.find(project => project.path === newKeys[0])
     if (record) {
       selectedRow.value = record
     }
   }
 })
+
+// 处理搜索
+const handleSearch = (value: string) => {
+  searchKeyword.value = value
+}
+
+// 清空搜索
+const handleSearchClear = () => {
+  searchKeyword.value = ''
+}
 
 // 处理行点击事件
 const handleRowClick = (record: AvailableProjectInfo) => {
@@ -135,13 +173,15 @@ const resetSelection = () => {
 watch(dialogVisible, (newVal) => {
   if (newVal && props.currentProject) {
     // 自动选中当前项目
-    const currentProject = props.projects.find(p => p.path === props.currentProject)
+    const currentProject = filteredProjects.value.find(p => p.path === props.currentProject)
     if (currentProject) {
       selectedKeys.value = [currentProject.path]
       selectedRow.value = currentProject
     }
   } else if (!newVal) {
     resetSelection()
+    // 关闭对话框时清空搜索
+    searchKeyword.value = ''
   }
 })
 </script>
@@ -149,6 +189,10 @@ watch(dialogVisible, (newVal) => {
 <style scoped>
 .project-select-dialog {
   width: 100%;
+}
+
+.search-container {
+  margin-bottom: 16px;
 }
 
 .project-name-cell {

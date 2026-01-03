@@ -66,7 +66,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   })
 
   // Actions
-  const initialize = async () => {
+  const initialize = async (skipProjectSwitch = false) => {
     loading.value = true
     error.value = null
 
@@ -77,12 +77,96 @@ export const useTimelineStore = defineStore('timeline', () => {
         currentProject.value = projectResponse.data.data
       }
 
-      // 检查URL参数中的sessionId
+      // 检查URL参数
       const urlParams = new URLSearchParams(window.location.search)
       const sessionId = urlParams.get('sessionid')
+      const fileId = urlParams.get('file')
+      const stepId = urlParams.get('step')
+      const projectPath = urlParams.get('project')
 
+      // 如果有项目路径参数且不是递归调用，尝试切换项目
+      // URL参数优先级高于当前选择的项目
+      if (projectPath && !skipProjectSwitch) {
+        // 解码URL编码的项目路径
+        const decodedProjectPath = decodeURIComponent(projectPath)
+        dlog('检测到URL项目路径参数:', decodedProjectPath)
+        
+        // 只有当URL路径与当前项目不同时才切换
+        if (currentProject.value?.projectDir !== decodedProjectPath) {
+          try {
+            await switchProject(decodedProjectPath)
+            return // switchProject 会重新调用 initialize，所以这里直接返回
+          } catch (err) {
+            console.warn('切换到指定项目失败:', err)
+            // 继续使用当前项目
+          }
+        }
+      }
+
+      // 如果有fileId参数，使用新的分享链接逻辑
+      if (fileId) {
+        // 先获取文件列表
+        await fetchMainLogs()
+        
+        // 找到对应的主日志并选中，以更新availableFiles
+        const targetMainLog = mainLogs.value.find(log => log.id === fileId)
+        if (targetMainLog) {
+          await selectMainLog(targetMainLog)
+        } else {
+          // 如果不是主日志，可能是子agent日志
+          // 需要从所有主日志中查找包含该子代理的日志
+          let foundMainLog = null;
+          
+          // 遍历所有主日志，获取其子代理列表
+          for (const mainLog of mainLogs.value) {
+            const filesUrl = `/api/files?mainLogId=${encodeURIComponent(mainLog.id)}`
+            try {
+              const response = await axios.get<ApiResponse<FilesApiResponse>>(filesUrl)
+              if (response.data.success && response.data.data) {
+                const files = response.data.data.files
+                // 检查是否包含目标子代理
+                if (files.some(f => f.id === fileId)) {
+                  foundMainLog = mainLog
+                  // 更新 availableFiles 为这个主日志的文件列表
+                  availableFiles.value = files
+                  break
+                }
+              }
+            } catch (err) {
+              console.error(`获取主日志 ${mainLog.id} 的文件列表失败:`, err)
+            }
+          }
+          
+          if (foundMainLog) {
+            // 如果找到了包含该子代理的主日志，选中它并加载文件
+            selectedMainLog.value = foundMainLog
+            await loadFile(fileId)
+          } else {
+            // 否则获取所有文件（不包含agentName信息）
+            const response = await axios.get<ApiResponse<FilesApiResponse>>('/api/files')
+            if (response.data.success && response.data.data) {
+              availableFiles.value = response.data.data.files
+            }
+            // 然后加载指定文件
+            await loadFile(fileId)
+          }
+        }
+        
+        // 如果加载成功且有stepId参数，定位到指定步骤
+        if (currentConversation.value && stepId) {
+          const targetStep = currentConversation.value.steps.find(step => step.id === stepId)
+          if (targetStep) {
+            selectedStep.value = targetStep
+            // 确保步骤展开并滚动到视图
+            setTimeout(() => {
+              ensureStepExpanded(stepId)
+              scrollToStep(stepId)
+            }, 300)
+          }
+        }
+      }
       // 如果有sessionId参数，使用旧的逻辑
-      if (sessionId) {
+      else if (sessionId) {
         const filesUrl = `/api/files?sessionId=${encodeURIComponent(sessionId)}`
         const filesResponse = await axios.get<ApiResponse<FilesApiResponse>>(filesUrl)
         if (filesResponse.data.success && filesResponse.data.data) {
@@ -276,8 +360,8 @@ export const useTimelineStore = defineStore('timeline', () => {
 
     socket.value.on('project:changed', (data) => {
       dlog('项目变更:', data)
-      // 重新初始化
-      initialize()
+      // 重新初始化，跳过项目切换检查
+      initialize(true)
     })
   }
 
@@ -409,7 +493,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         selectedMainLog.value = null
 
         // 切换成功后重新初始化
-        await initialize()
+        await initialize(true) // 传递 true 表示跳过项目切换检查
       } else {
         throw new Error(response.data.error || '切换项目失败')
       }

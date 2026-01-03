@@ -6,6 +6,18 @@
         <div class="header-content">
           <h1 class="title">Claude Code Debug</h1>
           <div class="header-actions">
+            <a-button 
+              type="outline" 
+              size="small"
+              :disabled="!timelineStore.currentFileId"
+              @click="copyShareLink"
+              title="复制分享链接"
+            >
+              <template #icon>
+                <icon-share-alt />
+              </template>
+              复制链接
+            </a-button>
           </div>
         </div>
       </a-layout-header>
@@ -61,6 +73,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useTimelineStore } from '../stores/timeline'
+import { Message } from '@arco-design/web-vue'
+import { IconShareAlt } from '@arco-design/web-vue/es/icon'
 import ProjectPanel from './ProjectPanel.vue'
 import Timeline from './Timeline.vue'
 import DetailPanel from './DetailPanel.vue'
@@ -77,6 +91,54 @@ const isResizing = ref(false)
 const isResizingSidebar = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
+
+// 复制分享链接功能
+const copyShareLink = async () => {
+  try {
+    // 构建分享链接URL
+    const url = new URL(window.location.href)
+    
+    // 清除之前的参数
+    url.searchParams.delete('project')
+    url.searchParams.delete('file')
+    url.searchParams.delete('step')
+    url.searchParams.delete('sessionid') // 清除旧的sessionId参数
+    
+    // 添加当前状态参数
+    if (timelineStore.currentFileId) {
+      url.searchParams.set('file', timelineStore.currentFileId)
+      
+      // 如果有选中的步骤，添加步骤ID
+      if (timelineStore.selectedStep) {
+        url.searchParams.set('step', timelineStore.selectedStep.id)
+      }
+      
+      // 总是添加项目路径，确保链接可以在任何地方使用
+      // 优先使用 store 中的项目信息，如果没有则从当前 URL 获取
+      let projectDir = null
+      if (timelineStore.currentProject?.projectDir) {
+        projectDir = timelineStore.currentProject.projectDir
+      } else {
+        // 从当前 URL 中获取 project 参数
+        const currentUrl = new URL(window.location.href)
+        projectDir = currentUrl.searchParams.get('project')
+      }
+      
+      if (projectDir) {
+        url.searchParams.set('project', projectDir)
+      }
+    }
+    
+    // 复制到剪贴板
+    await navigator.clipboard.writeText(url.toString())
+    
+    // 显示成功提示
+    Message.success('分享链接已复制到剪贴板')
+  } catch (err) {
+    console.error('复制链接失败:', err)
+    Message.error('复制链接失败，请重试')
+  }
+}
 
 // 切换面板显示状态
 const toggleDetailPanel = () => {

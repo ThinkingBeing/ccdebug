@@ -26,6 +26,28 @@ export class ClaudeTrafficLogger {
 	private htmlGenerator: HTMLGenerator;
 
 	constructor(config: InterceptorConfig = {}) {
+		// 检查是否启用了跟踪
+		const traceEnabled = process.env.CLAUDE_TRACE_ENABLED === "true";
+		
+		if (!traceEnabled) {
+			// 如果未启用跟踪，则不初始化日志记录器
+			this.config = {
+				logDirectory: ".claude-trace",
+				enableRealTimeHTML: false,
+				logLevel: "info",
+				...config,
+			};
+			// 不创建目录和文件
+			this.traceHomeDir = "";
+			this.traceLogDir = "";
+			this.traceLogFile = "";
+			this.ccLogDir = "";
+			this.ccLogFile = "";
+			this.htmlFile = "";
+			this.htmlGenerator = new HTMLGenerator();
+			return;
+		}
+		
 		this.config = {
 			logDirectory: ".claude-trace",
 			enableRealTimeHTML: false,
@@ -184,6 +206,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	public instrumentFetch(): void {
+		// 检查是否启用了跟踪
+		if (!this.traceLogFile) {
+			return;
+		}
+		
 		if (!global.fetch) {
 			// Silent - fetch not available
 			return;
@@ -274,6 +301,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	public instrumentNodeHTTP(): void {
+		// 检查是否启用了跟踪
+		if (!this.traceLogFile) {
+			return;
+		}
+		
 		try {
 			const http = require("http");
 			const https = require("https");
@@ -421,6 +453,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	private async writePairToLog(pair: RawPair): Promise<void> {
+		// 检查是否启用了跟踪
+		if (!this.traceLogFile) {
+			return;
+		}
+		
 		try {
 			const jsonLine = JSON.stringify(pair) + "\n";
 			fs.appendFileSync(this.traceLogFile, jsonLine);
@@ -430,6 +467,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	private async generateHTML(): Promise<void> {
+		// 检查是否启用了跟踪
+		if (!this.htmlFile) {
+			return;
+		}
+		
 		try {
 			const includeAllRequests = process.env.CLAUDE_TRACE_INCLUDE_ALL_REQUESTS === "true";
 			await this.htmlGenerator.generateHTML(this.pairs, this.htmlFile, {
@@ -444,6 +486,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	public cleanup(): void {
+		// 检查是否启用了跟踪
+		if (!this.traceLogFile) {
+			return;
+		}
+		
 		console.log("Cleaning up orphaned requests...");
 
 		for (const [, requestData] of this.pendingRequests.entries()) {
@@ -488,6 +535,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	private getSessionIdFromLog(): string {
+		// 检查是否启用了跟踪
+		if (!this.traceLogFile) {
+			return '';
+		}
+		
 		// Check if log file exists
 		if (!fs.existsSync(this.traceLogFile)) {
 			console.log("获取sessionId错误：Log file does not exist");
@@ -530,6 +582,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	private copyCClogFile(sessionId: string): void {
+		// 检查是否启用了跟踪
+		if (!this.ccLogDir) {
+			return;
+		}
+		
 		//将当前会话对应的cc日志文件，拷贝到.claude-trace/cclog目录
 		try {
 			// 创建LogFileManager实例
@@ -590,6 +647,11 @@ export class ClaudeTrafficLogger {
 	}
 
 	private renameTraceLogFileBySessionId(sessionId: string): void {
+		// 检查是否启用了跟踪
+		if (!this.traceLogFile) {
+			return;
+		}
+		
 		try {
 			
 			const logDir = path.dirname(this.traceLogFile);

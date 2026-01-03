@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL参数传递项目路径测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-case {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-case h3 {
+            margin-top: 0;
+        }
+        .test-link {
+            display: inline-block;
+            margin: 5px 10px 5px 0;
+            padding: 8px 15px;
+            background-color: #1890ff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .test-link:hover {
+            background-color: #40a9ff;
+        }
+        .note {
+            background-color: #f0f7ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        code {
+            background-color: #f5f5f5;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>URL参数传递项目路径测试</h1>
+    
+    <div class="note">
+        <strong>说明：</strong>以下测试链接用于验证URL参数传递项目目录路径的功能。
+        URL中的 <code>project</code> 参数会被解码并用作当前项目目录。
+    </div>
+
+    <div class="test-case">
+        <h3>测试1：基本路径</h3>
+        <p>测试普通的项目路径（不含特殊字符）</p>
+        <a href="/?project=/Users/ligf/Code/claude-code/ccdebug" class="test-link" target="_blank">
+            打开项目: /Users/ligf/Code/claude-code/ccdebug
+        </a>
+    </div>
+
+    <div class="test-case">
+        <h3>测试2：包含空格的路径</h3>
+        <p>测试路径中包含空格的情况（空格会被编码为 %20）</p>
+        <a href="/?project=/Users/ligf/My%20Projects/test-project" class="test-link" target="_blank">
+            打开项目: /Users/ligf/My Projects/test-project
+        </a>
+    </div>
+
+    <div class="test-case">
+        <h3>测试3：包含中文的路径</h3>
+        <p>测试路径中包含中文字符的情况</p>
+        <a href="/?project=/Users/ligf/项目/测试项目" class="test-link" target="_blank">
+            打开项目: /Users/ligf/项目/测试项目
+        </a>
+    </div>
+
+    <div class="test-case">
+        <h3>测试4：包含特殊字符的路径</h3>
+        <p>测试路径中包含特殊字符（如 #, & 等）的情况</p>
+        <a href="/?project=/Users/ligf/Code/project-v1.2%23beta" class="test-link" target="_blank">
+            打开项目: /Users/ligf/Code/project-v1.2#beta
+        </a>
+    </div>
+
+    <div class="test-case">
+        <h3>测试5：组合参数</h3>
+        <p>测试项目路径与其他参数（sessionid, file, step）的组合</p>
+        <a href="/?project=/Users/ligf/Code/claude-code/ccdebug&sessionid=abc123" class="test-link" target="_blank">
+            项目 + Session ID
+        </a>
+        <a href="/?project=/Users/ligf/Code/claude-code/ccdebug&file=main.log" class="test-link" target="_blank">
+            项目 + 文件 ID
+        </a>
+        <a href="/?project=/Users/ligf/Code/claude-code/ccdebug&file=main.log&step=step1" class="test-link" target="_blank">
+            项目 + 文件 ID + 步骤 ID
+        </a>
+    </div>
+
+    <div class="test-case">
+        <h3>验证步骤</h3>
+        <ol>
+            <li>点击上述任一测试链接</li>
+            <li>观察页面加载后是否自动选择了指定的项目</li>
+            <li>检查项目信息面板中显示的路径是否正确</li>
+            <li>如果同时指定了其他参数，验证是否也正确处理</li>
+        </ol>
+    </div>
+
+    <div class="note">
+        <strong>注意：</strong>
+        <ul>
+            <li>URL参数中的路径会被自动解码（URL decode）</li>
+            <li>如果指定的路径不存在，系统会保持当前项目不变</li>
+            <li>URL参数的优先级高于手动选择的项目</li>
+            <li>路径必须是绝对路径</li>
+        </ul>
+    </div>
+
+    <script>
+        // 显示当前URL参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentParams = {};
+        for (const [key, value] of urlParams) {
+            currentParams[key] = value;
+        }
+        
+        if (Object.keys(currentParams).length > 0) {
+            document.body.innerHTML += `
+                <div class="test-case">
+                    <h3>当前URL参数</h3>
+                    <pre>${JSON.stringify(currentParams, null, 2)}</pre>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

@@ -510,17 +510,17 @@ export class LogFileManager {
         }
       }
 
-      // 3. 按文件修改时间排序（创建顺序）
-      candidateAgents.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
+      // 3. 不再按文件修改时间排序，而是按照在主日志中的顺序排序
+      // candidateAgents.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
 
-      // 4. 按agentId关联agent名称及agent日志文件
+      // 4. 按agentId关联agent名称及agent日志文件，并按照主日志中的顺序排列
       const agentLogs: any[] = [];
 
-      // 使用 Promise.all 确保所有异步操作完成
-      await Promise.all(candidateAgents.map(async (agent, index) => {
-        const task = taskToolUses.find((tUse) => {return tUse.agentId === agent.agentId});
-
-        if(task) {
+      // 遍历 taskToolUses，按照主日志中的顺序添加子代理日志
+      for (const task of taskToolUses) {
+        const agent = candidateAgents.find((a) => a.agentId === task.agentId);
+        
+        if (agent) {
           // 计算步骤数量
           let stepCount = 0;
           
@@ -570,7 +570,7 @@ export class LogFileManager {
           size  // 文件大小
         });
         }
-      }));
+      }
 
       return agentLogs;
     } catch (error) {

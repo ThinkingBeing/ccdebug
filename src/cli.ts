@@ -49,13 +49,15 @@ ${colors.yellow}选项:${colors.reset}
   --serve, --log, -l  启动站点，查看claude code日志
   --run-with         将后续所有参数传递给 Claude 进程
   --claude-path      指定 Claude 二进制文件或cli.js的路径
+  --trace            启用HTTP请求跟踪（默认不跟踪）
   --version, -v      显示版本信息
   --help, -h         显示此帮助信息
 
 ${colors.yellow}模式:${colors.reset}
   ${colors.green}交互式日志:${colors.reset}
-  ccdebug   启动带流量日志的 Claude
-  ccdebug --run-with -p "请按要求工作" --verbose  使用特定命令运行 Claude
+  ccdebug               启动 Claude（不进行跟踪）
+  ccdebug --trace       启动 Claude 并跟踪 HTTP 请求
+  ccdebug --trace --run-with -p "请按要求工作" --verbose  使用特定命令运行 Claude 并跟踪请求
 
   ${colors.green}Web 服务器:${colors.reset}
   ccdebug --serve                            启动站点，查看claude code日志
@@ -70,7 +72,7 @@ ${colors.yellow}模式:${colors.reset}
 
 ${colors.yellow}输出:${colors.reset}
   cc标准日志: ${colors.green}.claude-trace/cclog/*.jsonl${colors.reset}
-  cc跟踪日志: ${colors.green}.claude-trace/tracelog/*.jsonl${colors.reset}
+  cc跟踪日志: ${colors.green}.claude-trace/tracelog/*.jsonl${colors.reset} ${colors.yellow}(仅在--trace参数下创建)${colors.reset}
 
 更多信息请访问: https://github.com/myskyline_ai/ccdebug
 `);
@@ -323,8 +325,9 @@ async function runClaudeWithInterception(
 	openInBrowser: boolean = false,
 	customClaudePath?: string,
 	logBaseName?: string,
+	enableTrace: boolean = false,
 ): Promise<void> {
-	log("启动 Claude 并记录流量日志", "blue");
+	log("启动 Claude", "blue");
 	if (claudeArgs.length > 0) {
 		log(`Claude 参数: ${claudeArgs.join(" ")}`, "blue");
 	}
@@ -336,7 +339,11 @@ async function runClaudeWithInterception(
 	
 	if (isNodeScript(claudePath)) {
 		// Node.js 脚本方式：使用原有的 --require 方式
-		log("使用 Node.js 拦截方法", "blue");
+		if (enableTrace) {
+			log("使用 Node.js 拦截方法（已启用跟踪）", "blue");
+		} else {
+			log("使用 Node.js 启动 Claude（未启用跟踪）", "blue");
+		}
 		const loaderPath = getLoaderPath();
 		const spawnArgs = ["--require", loaderPath, claudePath, ...claudeArgs];
 		child = spawn("node", spawnArgs, {
@@ -345,6 +352,7 @@ async function runClaudeWithInterception(
 				NODE_OPTIONS: "--no-deprecation",
 				CLAUDE_TRACE_INCLUDE_ALL_REQUESTS: includeAllRequests ? "true" : "false",
 				CLAUDE_TRACE_OPEN_BROWSER: openInBrowser ? "true" : "false",
+				CLAUDE_TRACE_ENABLED: enableTrace ? "true" : "false",
 				...(logBaseName ? { CLAUDE_TRACE_LOG_NAME: logBaseName } : {}),
 			},
 			stdio: "inherit",
@@ -356,8 +364,7 @@ async function runClaudeWithInterception(
 		log("⚠️  警告: 检测到原生二进制文件", "yellow");
 		log("CCDebug 无法拦截来自 Claude Code 原生二进制版本的 API 请求，调试功能将无法工作", "yellow");
 		log("要使用 CCDebug 的完整调试功能，请改用 NPM 版本的 Claude Code。", "yellow");
-		console.log("");
-		log("正在启动 Claude（不进行 API 拦截）...", "blue");
+		log("启动 Claude（不进行 API 拦截）...", "blue");
 		console.log("");
 
 		// 给用户一点时间阅读提示信息
@@ -375,7 +382,11 @@ async function runClaudeWithInterception(
 
 	// Node.js 模式显示成功消息
 	if (isNodeScript(claudePath)) {
-		log("流量日志记录器启动成功", "green");
+		if (enableTrace) {
+			log("流量日志记录器启动成功", "green");
+		} else {
+			log("Claude 启动成功（未启用跟踪）", "green");
+		}
 		console.log("");
 	}
 
@@ -627,6 +638,9 @@ async function main(): Promise<void> {
 		process.exit(0);
 	}
 
+	// Check for trace flag
+	const enableTrace = claudeTraceArgs.includes("--trace");
+
 	// Check for include all requests flag
 	const includeAllRequests = claudeTraceArgs.includes("--include-all-requests");
 
@@ -721,7 +735,7 @@ async function main(): Promise<void> {
 	}
 
 	// Scenario 1: No args (or claude with args) -> launch claude with interception
-	await runClaudeWithInterception(claudeArgs, includeAllRequests, openInBrowser, customClaudePath, logBaseName);
+	await runClaudeWithInterception(claudeArgs, includeAllRequests, openInBrowser, customClaudePath, logBaseName, enableTrace);
 }
 
 main().catch((error) => {

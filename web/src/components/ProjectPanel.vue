@@ -73,7 +73,7 @@
       <a-card title="日志信息" :bordered="false" size="small" class="file-card">
         <div class="detail-item">
           <span class="label">文件名:</span>
-          <span class="value">{{ selectedFileId }}</span>
+          <span class="value">{{ getCurrentFileDisplayName() }}</span>
         </div>
         <div class="detail-item">
           <span class="label">开始时间:</span>
@@ -427,6 +427,35 @@ const formatDateTime = (timestamp: string | Date): string => {
     minute: "2-digit",
     second: "2-digit",
   });
+};
+
+// 获取当前文件的显示名称
+const getCurrentFileDisplayName = (): string => {
+  if (!selectedFileId.value) return '';
+  
+  // 首先在 availableFiles 中查找
+  let file = availableFiles.value.find(f => f.id === selectedFileId.value);
+  
+  // 如果没找到，在所有主日志的 agentLogs 中查找
+  if (!file) {
+    for (const mainLog of mainLogs.value) {
+      const agentFile = mainLog.agentLogs?.find(f => f.id === selectedFileId.value);
+      if (agentFile) {
+        file = agentFile;
+        break;
+      }
+    }
+  }
+  
+  // 如果找到了文件，使用 getFileDisplayName 获取显示名称
+  if (file) {
+    return getFileDisplayName(file);
+  }
+  
+  // 如果还是没找到，返回文件ID（去掉扩展名）
+  const name = selectedFileId.value;
+  const lastDotIndex = name.lastIndexOf('.');
+  return lastDotIndex > -1 ? name.substring(0, lastDotIndex) : name;
 };
 
 // 获取文件显示名称（子agent显示名称，主日志显示文件名）
