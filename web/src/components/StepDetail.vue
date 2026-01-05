@@ -77,15 +77,6 @@
               <pre class="json-content" v-html="formatJsonWithHighlight(selectedStep.rawLogEntry || {})"></pre>
             </div>
           </div>
-          
-          <div class="content-actions">
-            <a-button size="small" @click="copyContent">
-              <template #icon>
-                <icon-copy />
-              </template>
-              复制内容
-            </a-button>
-          </div>
         </div>
       </a-card>
     </div>
@@ -283,7 +274,7 @@ const formatMetadataValue = (value: any): string => {
 }
 
 .metadata-section {
-  margin-top: 16px;
+  margin-top: 0px;
 }
 
 .metadata-section h4 {
@@ -320,14 +311,16 @@ const formatMetadataValue = (value: any): string => {
 }
 
 .content-container {
+  height: 100%; /* 使用100%高度而不是固定1200px */
+  max-height: calc(100vh - 450px); /* 限制最大高度，为头部和底部留出空间 */
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0px;
 }
 
 .content-actions {
   display: flex;
-  gap: 8px;
+  gap: 0px;
 }
 
 /* JSON语法高亮样式 */
@@ -406,6 +399,6 @@ const formatMetadataValue = (value: any): string => {
 }
 
 .content-display {
-  margin-bottom: 12px;
+  margin-bottom: 0px;
 }
 </style>

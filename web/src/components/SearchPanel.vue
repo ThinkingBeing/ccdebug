@@ -283,7 +283,8 @@ watch(searchKeyword, (newKeyword) => {
 
 <style scoped>
 .search-panel {
-  height: 1200px;
+  height: 100%; /* 使用100%高度而不是固定1200px */
+  max-height: calc(100vh - 120px); /* 限制最大高度，为头部和底部留出空间 */
   display: flex;
   flex-direction: column;
   background: var(--color-bg-1);
@@ -358,7 +359,6 @@ watch(searchKeyword, (newKeyword) => {
 .file-result-item :deep(.arco-collapse-item-header) {
   background: var(--color-fill-2);
   border-radius: 6px 6px 0 0;
-  padding: 12px 16px;
   font-weight: 500;
 }
 
@@ -370,8 +370,8 @@ watch(searchKeyword, (newKeyword) => {
 
 .file-results {
   padding: 8px;
-  height: 800px;
-  overflow: auto;
+  max-height: 500px; /* 设置最大高度，超过时显示滚动条 */
+  overflow-y: auto; /* 垂直方向自动滚动 */
 }
 
 .result-item {
