@@ -130,7 +130,28 @@ const copyShareLink = async () => {
     }
     
     // 复制到剪贴板
-    await navigator.clipboard.writeText(url.toString())
+    const linkText = url.toString()
+    
+    // 检查是否支持 Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(linkText)
+    } else {
+      // 备用方案：使用 document.execCommand
+      const textArea = document.createElement('textarea')
+      textArea.value = linkText
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      textArea.style.top = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      
+      try {
+        document.execCommand('copy')
+      } finally {
+        document.body.removeChild(textArea)
+      }
+    }
     
     // 显示成功提示
     Message.success('分享链接已复制到剪贴板')
