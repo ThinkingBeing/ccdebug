@@ -437,10 +437,10 @@ export const useTimelineStore = defineStore('timeline', () => {
         availableFiles.value = response.data.data.files
         dlog(`选中主日志 ${mainLog.id}，共 ${availableFiles.value.length} 个文件`)
 
-        // 自动加载主日志文件
-        if (availableFiles.value.length > 0) {
-          await loadFile(mainLog.id)
-        }
+        // 不再自动加载主日志文件，让用户手动选择
+        // if (availableFiles.value.length > 0) {
+        //   await loadFile(mainLog.id)
+        // }
       } else {
         throw new Error(response.data.error || '获取文件列表失败')
       }

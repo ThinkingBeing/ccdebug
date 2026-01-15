@@ -263,10 +263,13 @@ export class WebServer {
           if (mainLog) {
             // 获取子agent日志
             const agentLogs = await this.logFileManager.getAgentLogsForSession(this.logDir, mainLogId);
+            
+            // 将agentLogs作为主日志的属性
+            (mainLog as any).agentLogs = agentLogs;
 
-            // 合并主日志和子agent日志
+            // 返回主日志和所有子agent日志
             files = [mainLog, ...agentLogs];
-            dlog(`按mainLogId ${mainLogId} 过滤后找到 ${files.length} 个文件（1个主日志 + ${agentLogs.length}个子agent日志）`);
+            dlog(`按mainLogId ${mainLogId} 过滤后找到 1 个主日志和 ${agentLogs.length} 个子agent日志`);
           } else {
             files = [];
             dlog(`未找到mainLogId为 ${mainLogId} 的主日志`);
@@ -306,7 +309,7 @@ export class WebServer {
     });
 
     // 对话数据API
-    this.app.get('/api/conversations/:fileId', async (req, res) => {
+    this.app.get('/api/conversations/:fileId(*)', async (req, res) => {
       try {
         const fileId = req.params.fileId as string;
         
@@ -478,7 +481,7 @@ export class WebServer {
     });
 
     // 获取会话步骤详情
-    this.app.get('/api/conversations/:fileId/steps/:stepId', async (req, res) => {
+    this.app.get('/api/conversations/:fileId(*)/steps/:stepId', async (req, res) => {
       try {
         const { fileId, stepId } = req.params;
         
@@ -524,7 +527,7 @@ export class WebServer {
     });
 
     // 获取LLM日志
-    this.app.get('/api/conversations/:fileId/llm-logs/:messageId', async (req, res) => {
+    this.app.get('/api/conversations/:fileId(*)/llm-logs/:messageId', async (req, res) => {
       try {
         const { fileId, messageId } = req.params;
         dlog(`查找LLM日志: fileId=${fileId}, messageId=${messageId}`);

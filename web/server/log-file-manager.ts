@@ -413,7 +413,6 @@ export class LogFileManager {
         return [];
       }
 
-      const files = await fs.promises.readdir(logDir);
       const mainLogPath = path.join(logDir, `${sessionId}.jsonl`);
 
       // 检查主日志是否存在
@@ -469,43 +468,67 @@ export class LogFileManager {
       // 2. 获取所有匹配的agent日志文件
       const candidateAgents: any[] = [];
 
-      for (const file of files) {
-        // 仅处理子agent日志文件
-        if (file.startsWith('agent-') && file.endsWith('.jsonl')) {
-          const agentLogPath = path.join(logDir, file);
+      /*
+      subagent日志目录在不同cc版本中不一样：
+      - 当前版本：日志文件与主日志文件放在同一目录，文件名格式为 agent-{agentId}.jsonl
+      - 新版本：subagent日志文件放在以sessionid为目录名的目录下，路径为：{sessionId}/subagents/
+      代码需要兼容这两种情况
+      */
+      
+      // 定义可能的日志路径
+      const possibleLogPaths: string[] = [];
+      
+      // 当前版本路径：与主日志在同一目录
+      possibleLogPaths.push(logDir);
+      
+      // 新版本路径：{sessionId}/subagents/
+      const newVersionLogDir = path.join(logDir, sessionId, 'subagents');
+      if (fs.existsSync(newVersionLogDir)) {
+        possibleLogPaths.push(newVersionLogDir);
+      }
 
-          try {
-            // 读取子agent日志的第一行，检查其 sessionId 是否匹配
-            const content = await fs.promises.readFile(agentLogPath, 'utf-8');
-            const firstLine = content.split('\n').find((line: string) => line.trim());
+      // 遍历所有可能的日志路径
+      for (const logPath of possibleLogPaths) {
+        const files = await fs.promises.readdir(logPath);
 
-            if (firstLine) {
-              const firstEntry = JSON.parse(firstLine);
+        for (const file of files) {
+          // 仅处理子agent日志文件
+          if (file.startsWith('agent-') && file.endsWith('.jsonl')) {
+            const agentLogPath = path.join(logPath, file);
 
-              // 检查 sessionId 是否匹配，且不是 Warmup agent
-              if (firstEntry.sessionId === sessionId) {
-                const agentFirstContent = firstEntry.message?.content;
-                let isWarmup = false;
+            try {
+              // 读取子agent日志的第一行，检查其 sessionId 是否匹配
+              const content = await fs.promises.readFile(agentLogPath, 'utf-8');
+              const firstLine = content.split('\n').find((line: string) => line.trim());
 
-                // 检查是否为Warmup agent
-                if (typeof agentFirstContent === 'string' && agentFirstContent.includes('Warmup')) {
-                  isWarmup = true;
-                }
+              if (firstLine) {
+                const firstEntry = JSON.parse(firstLine);
 
-                if (!isWarmup) {
-                  const stats = await fs.promises.stat(agentLogPath);
-                  candidateAgents.push({
-                    file,
-                    path: agentLogPath,
-                    agentId: file.replace('agent-', '').replace('.jsonl', ''),
-                    mtime: new Date(firstEntry.timestamp)
-                  });
+                // 检查 sessionId 是否匹配，且不是 Warmup agent
+                if (firstEntry.sessionId === sessionId) {
+                  const agentFirstContent = firstEntry.message?.content;
+                  let isWarmup = false;
+
+                  // 检查是否为Warmup agent
+                  if (typeof agentFirstContent === 'string' && agentFirstContent.includes('Warmup')) {
+                    isWarmup = true;
+                  }
+
+                  if (!isWarmup) {
+                    const stats = await fs.promises.stat(agentLogPath);
+                    candidateAgents.push({
+                      file,
+                      path: agentLogPath,
+                      agentId: file.replace('agent-', '').replace('.jsonl', ''),
+                      mtime: new Date(firstEntry.timestamp)
+                    });
+                  }
                 }
               }
+            } catch (error) {
+              console.error(`处理子agent日志失败: ${file}`, error);
+              continue;
             }
-          } catch (error) {
-            console.error(`处理子agent日志失败: ${file}`, error);
-            continue;
           }
         }
       }
@@ -558,8 +581,10 @@ export class LogFileManager {
             console.warn(`获取文件大小失败 ${agent.file}:`, error);
           }
           
+          const relativePath = path.relative(logDir, agent.path).replace('.jsonl', '');
+          
           agentLogs.push({
-          id: agent.file.replace('.jsonl', ''),
+          id: relativePath,
           name: agent.file,
           path: agent.path,
           agentId: agent.agentId,

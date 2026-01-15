@@ -81,17 +81,31 @@ export class ConversationParser {
       if (!this.logDir) {
         throw new Error('日志目录未设置');
       }
-      // 如果fileId已经包含.jsonl后缀，就不再添加
       let filePath: string;
-      const fileName = fileId.endsWith('.jsonl') ? fileId : `${fileId}.jsonl`;
-      // 从日志目录加载文件
-      const logFilePath = path.join(this.logDir, fileName);
-      dlog(`调试: 尝试从日志目录查找文件: ${logFilePath}`);
-      if (fs.existsSync(logFilePath)) {
-        filePath = logFilePath;
-        dlog(`调试: 在日志目录找到文件: ${filePath}`);
+      // 检查 fileId 是否已经包含路径
+      if (fileId.includes('/') || fileId.includes(path.sep)) {
+        // fileId 包含路径，需要添加 .jsonl 扩展名
+        filePath = path.join(this.logDir, fileId);
+        if (!filePath.endsWith('.jsonl')) {
+          filePath = filePath + '.jsonl';
+        }
       } else {
-        throw new Error(`文件不存在: ${logFilePath}`);
+        // fileId 是简单的文件名，按原来的方式处理
+        const fileName = fileId.endsWith('.jsonl') ? fileId : `${fileId}.jsonl`;
+        // 从日志目录加载文件
+        const logFilePath = path.join(this.logDir, fileName);
+        
+        if (fs.existsSync(logFilePath)) {
+          filePath = logFilePath;
+        } else {
+          // 如果在日志目录找不到，尝试直接使用 fileId 作为绝对路径
+          const directPath = fileId.endsWith('.jsonl') ? fileId : `${fileId}.jsonl`;
+          if (fs.existsSync(directPath)) {
+            filePath = directPath;
+          } else {
+            throw new Error(`文件不存在: ${logFilePath}`);
+          }
+        }
       }
 
       const content = fs.readFileSync(filePath, 'utf-8');
