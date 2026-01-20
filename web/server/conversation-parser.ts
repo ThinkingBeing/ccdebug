@@ -225,8 +225,8 @@ export class ConversationParser {
   
   private parseStep(logEntry: any): any | null {
     try {
-      // 跳过conversation_start、llm_request和progress类型的条目
-      if (logEntry.type === 'conversation_start' || logEntry.type === 'llm_request' || logEntry.type === 'progress') {
+      // 跳过conversation_start、llm_request、progress、file-history-snapshot和system类型的条目
+      if (logEntry.type === 'conversation_start' || logEntry.type === 'llm_request' || logEntry.type === 'progress' || logEntry.type === 'file-history-snapshot' || logEntry.type === 'system') {
         return null;
       }
       

@@ -1,5 +1,5 @@
 <template>
-  <div class="timeline-container">
+  <div class="timeline-container" @click="hideContextMenu">
     <div v-if="loading" class="loading">
       <a-spin :size="32" />
       <p>加载中...</p>
@@ -41,18 +41,36 @@
             <!-- 时间显示 -->
             <div class="timeline-time" v-if="formatTime(step.timestamp)">
               {{ formatTime(step.timestamp) }}
+              <!-- 基础耗时显示 -->
+              <div class="timeline-elapsed" v-if="calculateElapsedTime(step)">
+                {{ calculateElapsedTime(step) }}
+              </div>
             </div>
             
             <!-- 连接线和节点 -->
             <div class="timeline-connector">
               <div 
                 class="timeline-dot" 
+                :class="{ 'duration-node': timelineStore.isDurationNode(step.id) }"
                 :style="{ backgroundColor: getNodeColor(step.type) }"
                 :title="`${getNodeTypeLabel(step.type)} - ${formatTime(step.timestamp)}`"
+                @contextmenu.prevent="showContextMenu($event, step)"
               >
                 <span class="step-number">{{ step.originalIndex }}</span>
               </div>
               <div v-if="index < processedSteps.length - 1" class="timeline-line"></div>
+              
+              <!-- 耗时统计连接线 -->
+              <div 
+                v-if="timelineStore.isDurationNode(step.id) && getNextDurationNode(index)"
+                class="duration-connector"
+                :data-from-id="step.id"
+                :data-to-id="getNextDurationNode(index)?.id"
+              >
+                <div class="duration-label">
+                  {{ calculateDurationBetweenNodes(step, getNextDurationNode(index)) }}
+                </div>
+              </div>
             </div>
             
             <!-- 内容卡片 -->
@@ -78,7 +96,7 @@
                           {{ getToolSpecificInfo(step) }}
                         </span>
                         <span v-else-if="step.type === 'agent_child'" class="subagent-prompt">
-                          {{ extractPromptParam(step.parameters) }}
+                          {{ truncateText(extractPromptParam(step.parameters), 80) }}
                         </span>
                       </span>
                     </a-tooltip>
@@ -218,11 +236,37 @@
         </div>
       </div>
     </div>
+
+    <!-- 右键菜单 -->
+    <div 
+      v-if="contextMenuVisible" 
+      class="context-menu"
+      :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
+      @click.stop
+    >
+      <div 
+        v-if="contextMenuStep && !timelineStore.isDurationNode(contextMenuStep.id)"
+        class="context-menu-item" 
+        @click="setAsDurationNode"
+      >
+        设置为耗时统计节点
+      </div>
+      <div 
+        v-if="contextMenuStep && timelineStore.isDurationNode(contextMenuStep.id)"
+        class="context-menu-item" 
+        @click="removeDurationNode"
+      >
+        取消耗时节点设置
+      </div>
+      <div class="context-menu-item" @click="clearAllDurationNodes">
+        清除所有耗时节点设置
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, defineOptions } from 'vue'
+import { ref, computed, onMounted, watch, defineOptions } from 'vue'
 import { Tooltip as ATooltip } from '@arco-design/web-vue'
 import { IconFileImage } from '@arco-design/web-vue/es/icon'
 import { useTimelineStore } from '../stores/timeline'
@@ -256,6 +300,11 @@ const conversations = computed(() => timelineStore.conversations)
 const currentConversation = computed(() => timelineStore.currentConversation)
 const selectedStep = computed(() => timelineStore.selectedStep)
 const searchKeyword = computed(() => timelineStore.searchKeyword)
+
+// 右键菜单状态
+const contextMenuVisible = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const contextMenuStep = ref<ConversationStep | null>(null)
 
 // 展开状态管理现在使用 store 中的状态
 
@@ -373,10 +422,13 @@ const selectStep = (step: ConversationStep) => {
 
 // 展开/收起功能
 // 在模板中调用getDisplayContent时也添加调试信息
-  // 处理头部点击事件
+  // 处理卡片头部点击事件
 const handleHeaderClick = (step: ConversationStep) => {
-  if (shouldShowExpandButton(step)) {
+  if (isCollapsible(step)) {
     timelineStore.toggleExpanded(step.id)
+    // 展开/收起后更新连接线高度
+    updateDurationConnectorHeights()
+    timelineStore.selectStep(step)
   }
 }
 
@@ -694,7 +746,7 @@ const getDisplayContent = (step: ConversationStep, customContent?: string) => {
   }
   
   // 对于不需要展开按钮的内容，检查是否超过350px高度
-  return highlightSearchKeyword(truncateContentByHeight(content, 350))
+  return highlightSearchKeyword(content)
 }
 
 // 获取高亮显示内容（用于JSON）
@@ -791,6 +843,166 @@ const truncateContentByHeight = (content: string, maxHeight: number) => {
 //     day: '2-digit'
 //   })
 // }
+
+// 计算从日志开始到当前节点的耗时
+const calculateElapsedTime = (step: ConversationStep) => {
+  if (!currentConversation.value?.steps || currentConversation.value.steps.length === 0) {
+    return null
+  }
+  
+  try {
+    const firstStep = currentConversation.value.steps[0]
+    if (!firstStep.timestamp || !step.timestamp) {
+      return null
+    }
+    
+    const startTime = new Date(firstStep.timestamp).getTime()
+    const currentTime = new Date(step.timestamp).getTime()
+    
+    if (isNaN(startTime) || isNaN(currentTime)) {
+      return null
+    }
+    
+    const duration = currentTime - startTime // 毫秒
+    return formatDuration(duration)
+  } catch (error) {
+    console.warn('计算耗时失败:', error)
+    return null
+  }
+}
+
+// 格式化耗时
+const formatDuration = (duration: number): string => {
+  if (duration < 1000) {
+    return `${duration}ms`
+  } else if (duration < 60000) {
+    const seconds = (duration / 1000).toFixed(1)
+    return `${seconds}s`
+  } else {
+    const minutes = Math.floor(duration / 60000)
+    const seconds = Math.floor((duration % 60000) / 1000)
+    return seconds > 0 ? `${minutes}m${seconds}s` : `${minutes}m`
+  }
+}
+
+// 计算两个节点之间的耗时
+const calculateDurationBetweenNodes = (startStep: ConversationStep, endStep: ConversationStep | null): string => {
+  if (!endStep || !startStep.timestamp || !endStep.timestamp) {
+    return ''
+  }
+  
+  try {
+    const startTime = new Date(startStep.timestamp).getTime()
+    const endTime = new Date(endStep.timestamp).getTime()
+    
+    if (isNaN(startTime) || isNaN(endTime)) {
+      return ''
+    }
+    
+    const duration = endTime - startTime
+    return formatDuration(duration)
+  } catch (error) {
+    console.warn('计算节点间耗时失败:', error)
+    return ''
+  }
+}
+
+// 获取下一个耗时统计节点
+const getNextDurationNode = (currentIndex: number): ConversationStep | null => {
+  if (!processedSteps.value) return null
+  
+  for (let i = currentIndex + 1; i < processedSteps.value.length; i++) {
+    const step = processedSteps.value[i]
+    if (timelineStore.isDurationNode(step.id)) {
+      return step
+    }
+  }
+  return null
+}
+
+// 更新所有耗时连接线的高度
+const updateDurationConnectorHeights = () => {
+  if (typeof window === 'undefined') return
+  
+  // 使用单次requestAnimationFrame，在下一帧立即更新
+  requestAnimationFrame(() => {
+    const connectors = document.querySelectorAll('.duration-connector')
+    
+    connectors.forEach((connector: Element) => {
+      const htmlConnector = connector as HTMLElement
+      const fromId = htmlConnector.dataset.fromId
+      const toId = htmlConnector.dataset.toId
+      
+      if (fromId && toId) {
+        // 通过data-step-id查找对应的卡片元素
+        const fromCard = document.querySelector(`[data-step-id="${fromId}"]`)
+        const toCard = document.querySelector(`[data-step-id="${toId}"]`)
+        
+        if (fromCard && toCard) {
+          // 找到对应的timeline-item
+          const fromItem = fromCard.closest('.timeline-item')
+          const toItem = toCard.closest('.timeline-item')
+          
+          if (fromItem && toItem) {
+            const fromDot = fromItem.querySelector('.timeline-dot')
+            const toDot = toItem.querySelector('.timeline-dot')
+            
+            if (fromDot && toDot) {
+              const fromRect = fromDot.getBoundingClientRect()
+              const toRect = toDot.getBoundingClientRect()
+              const height = toRect.top - fromRect.top - 28
+              
+              if (height > 0) {
+                htmlConnector.style.height = `${height}px`
+              }
+            }
+          }
+        }
+      }
+    })
+  })
+}
+
+// 监听步骤变化，更新连接线高度
+watch([processedSteps, () => timelineStore.durationNodes, () => timelineStore.expandedSteps], () => {
+  updateDurationConnectorHeights()
+}, { deep: true })
+
+// 显示右键菜单
+const showContextMenu = (event: MouseEvent, step: ConversationStep) => {
+  event.preventDefault()
+  contextMenuVisible.value = true
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY }
+  contextMenuStep.value = step
+}
+
+// 隐藏右键菜单
+const hideContextMenu = () => {
+  contextMenuVisible.value = false
+  contextMenuStep.value = null
+}
+
+// 设置为耗时统计节点
+const setAsDurationNode = () => {
+  if (contextMenuStep.value) {
+    timelineStore.addDurationNode(contextMenuStep.value.id)
+  }
+  hideContextMenu()
+}
+
+// 取消耗时节点设置
+const removeDurationNode = () => {
+  if (contextMenuStep.value) {
+    timelineStore.removeDurationNode(contextMenuStep.value.id)
+  }
+  hideContextMenu()
+}
+
+// 清除所有耗时节点设置
+const clearAllDurationNodes = () => {
+  timelineStore.clearDurationNodes()
+  hideContextMenu()
+}
 
 // 格式化时间 (HH:MM:SS)
 const formatTime = (timestamp: string) => {
@@ -924,6 +1136,9 @@ const getToolResultContent = (step: ConversationStep, isExpanded: boolean = fals
 onMounted(() => {
   // 移除重复的初始化调用，App.vue已经调用了
   // timelineStore.initialize()
+  
+  // 初始化时更新耗时连接线高度
+  updateDurationConnectorHeights()
 })
 
 // 处理子代理链接点击事件
@@ -1084,6 +1299,14 @@ defineExpose({
   line-height: 1.2;
 }
 
+/* 基础耗时显示 */
+.timeline-elapsed {
+  font-size: 11px;
+  color: #999;
+  margin-top: 4px;
+  font-style: italic;
+}
+
 .timeline-connector {
   width: 20px;
   flex-shrink: 0;
@@ -1107,6 +1330,26 @@ defineExpose({
   font-weight: bold;
   color: #fff;
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+/* 耗时统计节点高亮样式 */
+.timeline-dot.duration-node {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 3px #ff4d4f, 0 0 12px rgba(255, 77, 79, 0.4);
+  animation: pulse-duration 2s infinite;
+}
+
+@keyframes pulse-duration {
+  0%, 100% {
+    box-shadow: 0 0 0 3px #ff4d4f, 0 0 12px rgba(255, 77, 79, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #ff4d4f, 0 0 20px rgba(255, 77, 79, 0.6);
+  }
 }
 
 .step-number {
@@ -1177,12 +1420,12 @@ defineExpose({
   flex: 1;
   max-width: calc(100% - 32px);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   transition: color 0.2s ease;
   font-size: 13px;
   color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-header .summary-text:hover {
@@ -1351,8 +1594,6 @@ defineExpose({
 .user-query-content,
 .agent-thought-content,
 .agent-message-content {
-  max-height: 300px;
-  overflow-y: hidden;
   padding: 8px 0;
 }
 
@@ -1363,32 +1604,34 @@ defineExpose({
   word-break: break-word;
   font-size: 14px;
   line-height: 1.6;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 /* 自定义滚动条样式 */
-.user-query-content::-webkit-scrollbar,
-.agent-thought-content::-webkit-scrollbar,
-.agent-message-content::-webkit-scrollbar {
+.user-query-content .content-text::-webkit-scrollbar,
+.agent-thought-content .content-text::-webkit-scrollbar,
+.agent-message-content .content-text::-webkit-scrollbar {
   width: 6px;
 }
 
-.user-query-content::-webkit-scrollbar-track,
-.agent-thought-content::-webkit-scrollbar-track,
-.agent-message-content::-webkit-scrollbar-track {
+.user-query-content .content-text::-webkit-scrollbar-track,
+.agent-thought-content .content-text::-webkit-scrollbar-track,
+.agent-message-content .content-text::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 3px;
 }
 
-.user-query-content::-webkit-scrollbar-thumb,
-.agent-thought-content::-webkit-scrollbar-thumb,
-.agent-message-content::-webkit-scrollbar-thumb {
+.user-query-content .content-text::-webkit-scrollbar-thumb,
+.agent-thought-content .content-text::-webkit-scrollbar-thumb,
+.agent-message-content .content-text::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
-.user-query-content::-webkit-scrollbar-thumb:hover,
-.agent-thought-content::-webkit-scrollbar-thumb:hover,
-.agent-message-content::-webkit-scrollbar-thumb:hover {
+.user-query-content .content-text::-webkit-scrollbar-thumb:hover,
+.agent-thought-content .content-text::-webkit-scrollbar-thumb:hover,
+.agent-message-content .content-text::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 
@@ -1414,17 +1657,15 @@ defineExpose({
 }
 
 .summary-text {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: help;
-  transition: color 0.2s ease;
   display: flex;
   align-items: center;
-  width:1px;
+  max-width: 100%;
+  cursor: help;
+  transition: color 0.2s ease;
   gap: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
 }
 
 .summary-text:hover {
@@ -1954,6 +2195,83 @@ defineExpose({
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
 }
 
+/* 耗时统计连接线 */
+.duration-connector {
+  position: absolute;
+  left: 50%;
+  top: 28px;
+  transform: translateX(-50%);
+  width: 3px;
+  min-height: 100px;
+  background: linear-gradient(to bottom, #ff4d4f, #ff7875);
+  border-radius: 2px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(255, 77, 79, 0.3);
+}
+
+/* 耗时标签 */
+.duration-label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(255, 77, 79, 0.4);
+  z-index: 3;
+  border: 2px solid #fff;
+}
+
+/* 右键菜单样式 */
+.context-menu {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  min-width: 180px;
+  padding: 4px 0;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.context-menu-item:hover {
+  background: #f5f5f5;
+  color: #1890ff;
+}
+
+.context-menu-item:active {
+  background: #e8e8e8;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .timeline-time {
@@ -1964,6 +2282,15 @@ defineExpose({
   .timeline-content-card {
     margin-left: 12px;
     padding: 12px;
+  }
+  
+  .timeline-elapsed {
+    font-size: 10px;
+  }
+  
+  .duration-label {
+    font-size: 10px;
+    padding: 3px 8px;
   }
 }
 </style>

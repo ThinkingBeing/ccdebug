@@ -50,6 +50,9 @@ export const useTimelineStore = defineStore('timeline', () => {
   // 展开状态管理
   const expandedSteps = ref<Set<string>>(new Set())
 
+  // 耗时统计节点管理
+  const durationNodes = ref<Set<string>>(new Set())
+
   // 计算属性
   const currentConversationData = computed(() => {
     if (!currentConversation.value) return null
@@ -738,6 +741,23 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
+  // 耗时统计节点管理方法
+  const addDurationNode = (stepId: string) => {
+    durationNodes.value.add(stepId)
+  }
+
+  const removeDurationNode = (stepId: string) => {
+    durationNodes.value.delete(stepId)
+  }
+
+  const clearDurationNodes = () => {
+    durationNodes.value.clear()
+  }
+
+  const isDurationNode = (stepId: string) => {
+    return durationNodes.value.has(stepId)
+  }
+
   return {
     // 状态
     currentProject,
@@ -755,6 +775,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     searchResults,
     searchLoading,
     expandedSteps,
+    durationNodes,
 
     // 计算属性
     currentConversationData,
@@ -777,6 +798,10 @@ export const useTimelineStore = defineStore('timeline', () => {
     performSearch,
     toggleExpanded,
     isExpanded,
-    ensureStepExpanded
+    ensureStepExpanded,
+    addDurationNode,
+    removeDurationNode,
+    clearDurationNodes,
+    isDurationNode
   }
 })
