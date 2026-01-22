@@ -641,6 +641,25 @@ export class ClaudeTrafficLogger {
 				}
 			}
 
+			// 兼容subagents日志的另一种存放方式：sourceLogDir/{sessionId}/subagents/目录
+			const subagentsDir = path.join(sourceLogDir, sessionId, 'subagents');
+			if (fs.existsSync(subagentsDir)) {
+				try {
+					const subagentFiles = fs.readdirSync(subagentsDir).filter(file => file.startsWith('agent-') && file.endsWith('.jsonl'));
+					
+					for (const file of subagentFiles) {
+						const sourceFilePath = path.join(subagentsDir, file);
+						const targetFilePath = path.join(this.ccLogDir, file);
+						
+						// 直接拷贝文件，因为已经在正确的sessionId目录下
+						fs.copyFileSync(sourceFilePath, targetFilePath);
+						console.log(`SubAgent的CC日志文件已从 ${sourceFilePath} 拷贝到 ${targetFilePath}`);
+					}
+				} catch (error) {
+					console.log(`处理subagents目录时出错: ${error}`);
+				}
+			}
+
 		} catch (error) {
 			console.log(`拷贝CC日志文件时出错: ${error}`);
 		}

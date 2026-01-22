@@ -174,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, h } from 'vue'
+import { ref, computed, onMounted, watch, h, nextTick } from 'vue'
 import { 
   Button as AButton, 
   Card as ACard, 
@@ -472,17 +472,18 @@ const getFileDisplayName = (file: LogFileInfo | any): string => {
 
 // 获取文件的步骤数量
 const getFileStepCount = (file: LogFileInfo | any): number => {
-  // 优先使用后端返回的stepCount字段
-  if (file.stepCount !== undefined) {
-    return file.stepCount;
-  }
-  
-  // 如果没有stepCount，从 conversations 中查找对应的对话数据（兼容旧逻辑）
+  // 优先使用 conversations 中的步骤数量，与界面其他地方保持一致
   const conversation = conversations.value.find(c => c.id === file.id);
   if (conversation?.steps) {
     // 过滤掉 tool_result 类型，只计算有效步骤
     return conversation.steps.filter((s) => s.type !== "tool_result").length;
   }
+  
+  // 如果 conversations 中没有找到（兼容旧逻辑），使用后端返回的stepCount字段
+  if (file.stepCount !== undefined) {
+    return file.stepCount;
+  }
+  
   return 0;
 };
 
@@ -523,6 +524,22 @@ const handleProjectSelect = async (projectPath: string) => {
     console.error("切换项目失败:", error);
   }
 };
+
+// 监听conversations变化，强制更新下拉框显示
+watch(conversations, () => {
+  // 当conversations更新后，触发视图更新以确保下拉框中的步骤数量正确
+  nextTick(() => {
+    // 强制触发响应式更新
+    const selectedId = selectedFileId.value;
+    if (selectedId) {
+      // 临时设置为 null 再恢复，以触发下拉框选项的重新渲染
+      selectedFileId.value = null;
+      nextTick(() => {
+        selectedFileId.value = selectedId;
+      });
+    }
+  });
+}, { deep: true });
 
 // 组件挂载时检查URL参数
 onMounted(() => {

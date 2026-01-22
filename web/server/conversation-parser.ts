@@ -121,9 +121,12 @@ export class ConversationParser {
           allSteps.push(...conv.steps);
         });
         
-        // 重新分配全局步骤索引（从1开始）
-        allSteps.forEach((step, index) => {
-          step.originalIndex = index + 1;
+        // 重新分配全局步骤索引（从1开始），只对非 tool_result 类型的步骤编号
+        let stepIndex = 1;
+        allSteps.forEach((step) => {
+          if (step.type !== 'tool_result') {
+            step.originalIndex = stepIndex++;
+          }
         });
         
         return {
@@ -178,8 +181,11 @@ export class ConversationParser {
         // 解析步骤
         const step = this.parseStep(logEntry);
         if (step && currentConversation) {
-          // 添加原始步骤索引（从1开始）
-          step.originalIndex = currentConversation.steps.length + 1;
+          // 只有非 tool_result 类型的步骤才获得编号
+          if (step.type !== 'tool_result') {
+            // 添加原始步骤索引（从1开始）
+            step.originalIndex = currentConversation.steps.filter(s => s.type !== 'tool_result').length + 1;
+          }
           currentConversation.steps.push(step);
         }
         

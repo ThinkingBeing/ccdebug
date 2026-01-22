@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { ConversationParser } = require('./conversation-parser.js');
 // import { LogFileInfo } from '../src/types/index.js';
 
 export class LogFileManager {
@@ -66,42 +67,59 @@ export class LogFileManager {
         let agentName = null;
         
         try {
-          const content = await fs.promises.readFile(filepath, 'utf-8');
-          const lines = content.split('\n').filter(line => line.trim());
+          // 使用 ConversationParser 计算步骤数量
+          const parser = new ConversationParser();
+          parser.setLogDirectory(logDir);
           
-          // 计算步骤数量（与前端显示逻辑保持一致）
-          let hasConversationStarted = false;
+          // 文件ID就是文件名去掉扩展名
+          const fileId = file.replace('.jsonl', '');
+          const conversationData = await parser.parseFile(fileId);
           
-          for (const line of lines) {
-            try {
-              const entry = JSON.parse(line);
-              
-              // 模拟ConversationParser的isConversationStart逻辑
-              const isConversationStart = 
-                entry.type === 'conversation_start' ||
-                (entry.type === 'user' && !entry.parentUuid) ||
-                (!entry.parentUuid && entry.message);
-              
-              if (isConversationStart) {
-                hasConversationStarted = true;
-              }
-              
-              // 跳过conversation_start和llm_request类型
-              // 注意：不过滤message为null的条目，因为ConversationParser会将其处理为assistant_message
-              const isToolResult = entry.message?.content && 
-                                  Array.isArray(entry.message.content) && 
-                                  entry.message.content[0]?.type === 'tool_result';
-              
-              // 只有在对话开始后才计算步骤
-              if (hasConversationStarted && entry.type && entry.type !== 'conversation_start' && entry.type !== 'llm_request' && !isToolResult) {
-                stepCount++;
-              }
-            } catch (e) {
-              // 忽略解析错误的行
-            }
-          }
+          // 过滤掉 tool_result 类型，得到实际显示的步骤数量
+          stepCount = conversationData.steps.filter(s => s.type !== 'tool_result').length;
         } catch (error) {
-          console.warn(`读取文件 ${file} 失败:`, error);
+          console.warn(`解析文件 ${file} 失败:`, error);
+          // 如果解析失败，使用旧方法作为后备
+          try {
+            const content = await fs.promises.readFile(filepath, 'utf-8');
+            const lines = content.split('\n').filter(line => line.trim());
+            
+            // 计算步骤数量（与前端显示逻辑保持一致）
+            let hasConversationStarted = false;
+            
+            for (const line of lines) {
+              try {
+                const entry = JSON.parse(line);
+                
+                // 模拟ConversationParser的isConversationStart逻辑
+                const isConversationStart = 
+                  entry.type === 'conversation_start' ||
+                  (entry.type === 'user' && !entry.parentUuid) ||
+                  (!entry.parentUuid && entry.message);
+                
+                if (isConversationStart) {
+                  hasConversationStarted = true;
+                }
+                
+                // 跳过conversation_start和llm_request类型
+                // 注意：不过滤message为null的条目，因为ConversationParser会将其处理为assistant_message
+                // 与ConversationParser的determineStepType逻辑保持一致
+                const isToolResult = entry.message?.role === 'user' && 
+                                    entry.message?.content && 
+                                    Array.isArray(entry.message.content) && 
+                                    entry.message.content[0]?.type === 'tool_result';
+                
+                // 只有在对话开始后才计算步骤
+                if (hasConversationStarted && entry.type && entry.type !== 'conversation_start' && entry.type !== 'llm_request' && !isToolResult) {
+                  stepCount++;
+                }
+              } catch (e) {
+                // 忽略解析错误的行
+              }
+            }
+          } catch (fallbackError) {
+            console.warn(`后备方法也失败了 ${file}:`, fallbackError);
+          }
         }
         
         logFiles.push({
@@ -544,32 +562,48 @@ export class LogFileManager {
         const agent = candidateAgents.find((a) => a.agentId === task.agentId);
         
         if (agent) {
-          // 计算步骤数量
+          // 使用 ConversationParser 计算步骤数量
           let stepCount = 0;
           
           try {
-            const content = await fs.promises.readFile(agent.path, 'utf-8');
-            const lines = content.split('\n').filter(line => line.trim());
+            const parser = new ConversationParser();
+            parser.setLogDirectory(logDir);
             
-            // 计算步骤数量（与前端显示逻辑保持一致）
-            for (const line of lines) {
-              try {
-                const entry = JSON.parse(line);
-                // 跳过conversation_start和llm_request类型
-                // 注意：不过滤message为null的条目，因为ConversationParser会将其处理为assistant_message
-                const isToolResult = entry.message?.content && 
-                                    Array.isArray(entry.message.content) && 
-                                    entry.message.content[0]?.type === 'tool_result';
-                
-                if (entry.type && entry.type !== 'conversation_start' && entry.type !== 'llm_request' && !isToolResult) {
-                  stepCount++;
-                }
-              } catch (e) {
-                // 忽略解析错误的行
-              }
-            }
+            // 获取相对路径作为文件ID
+            const relativePath = path.relative(logDir, agent.path).replace('.jsonl', '');
+            const conversationData = await parser.parseFile(relativePath);
+            
+            // 过滤掉 tool_result 类型，得到实际显示的步骤数量
+            stepCount = conversationData.steps.filter(s => s.type !== 'tool_result').length;
           } catch (error) {
-            console.warn(`读取文件 ${agent.file} 失败:`, error);
+            console.warn(`解析文件 ${agent.file} 失败:`, error);
+            // 如果解析失败，使用旧方法作为后备
+            try {
+              const content = await fs.promises.readFile(agent.path, 'utf-8');
+              const lines = content.split('\n').filter(line => line.trim());
+              
+              // 计算步骤数量（与前端显示逻辑保持一致）
+              for (const line of lines) {
+                try {
+                  const entry = JSON.parse(line);
+                  // 跳过conversation_start和llm_request类型
+                  // 注意：不过滤message为null的条目，因为ConversationParser会将其处理为assistant_message
+                  // 与ConversationParser的determineStepType逻辑保持一致
+                  const isToolResult = entry.message?.role === 'user' && 
+                                      entry.message?.content && 
+                                      Array.isArray(entry.message.content) && 
+                                      entry.message.content[0]?.type === 'tool_result';
+                  
+                  if (entry.type && entry.type !== 'conversation_start' && entry.type !== 'llm_request' && !isToolResult) {
+                    stepCount++;
+                  }
+                } catch (e) {
+                  // 忽略解析错误的行
+                }
+              }
+            } catch (fallbackError) {
+              console.warn(`后备方法也失败了 ${agent.file}:`, fallbackError);
+            }
           }
           
           // 获取文件大小

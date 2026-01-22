@@ -308,8 +308,8 @@ export class WebServer {
       }
     });
 
-    // 对话数据API
-    this.app.get('/api/conversations/:fileId(*)', async (req, res) => {
+    // 获取LLM日志 - 必须放在通用路由之前
+    this.app.get('/api/conversations/:fileId(*)/llm-logs/:messageId', async (req, res) => {
       try {
         const fileId = req.params.fileId as string;
         
