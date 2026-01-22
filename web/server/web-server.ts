@@ -308,8 +308,160 @@ export class WebServer {
       }
     });
 
-    // 获取LLM日志 - 必须放在通用路由之前
+    // 获取LLM日志 - 具体路由，必须放在通用路由之前
     this.app.get('/api/conversations/:fileId(*)/llm-logs/:messageId', async (req, res) => {
+      try {
+        const { fileId, messageId } = req.params;
+        dlog(`查找LLM日志: fileId=${fileId}, messageId=${messageId}`);
+        
+        // 1. 直接在日志目录中查找对应的文件
+        const traceDir = path.join(this.config.projectDir, '.claude-trace', 'tracelog');
+        let targetFilePath: string | null = null;
+        let targetFileId = fileId;
+
+        //如果是agent-*文件，则从this.logDir目录读取此文件，找到第一个条记录的sessionId属性
+        if(fileId.startsWith('agent-')) {
+          const logFilePath = path.join(this.logDir, `${fileId}.jsonl`);
+          if (fs.existsSync(logFilePath)) {
+            const fileContent = await fs.readFileSync(logFilePath, 'utf-8');
+            const lines = fileContent.split('\n').filter(line => line.trim() !== '');
+            if (lines.length > 0) {
+              const firstRecord = JSON.parse(lines[0]);
+              if (firstRecord.sessionId) {
+                targetFileId = firstRecord.sessionId;
+                dlog(`根据agent-*文件找到sessionId: ${targetFileId}`);
+              }
+            }
+          }
+        }
+
+        // 查找sessionId.jsonl文件
+        const jsonlFilePath = path.join(traceDir, `${targetFileId}.jsonl`);
+        if (fs.existsSync(jsonlFilePath)) {
+          targetFilePath = jsonlFilePath;
+          dlog(`找到LLM日志文件: ${targetFilePath}`);
+        }
+        else {
+          throw new Error(`找不到LLM日志文件: ${targetFileId}`);
+        }
+
+        // 2. 读取并解析文件内容
+        const fileContent = await fs.promises.readFile(targetFilePath, 'utf-8');
+        
+        let matchedRecord: any = null;
+        
+        if (targetFilePath.endsWith('.jsonl')) {
+          // 处理.jsonl文件：逐行解析JSON
+          const lines = fileContent.split('\n').filter(line => line.trim() !== '');
+          
+          for (const line of lines) {
+            try {
+              const record = JSON.parse(line);
+              
+              // 3. 在response.body_raw中搜索messageId
+              if (record.response && record.response.body_raw) {
+                // 解析SSE数据，查找message_start事件中的messageId
+                try {
+                  const sseEvents = this.parseSSEData(record.response.body_raw);
+                  for (const event of sseEvents) {
+                    if (event.type === 'message_start' && event.message && event.message.id) {
+                      dlog(`找到message_start事件，messageId: ${event.message.id}, 查找的messageId: ${messageId}`);
+                      if (event.message.id === messageId || messageId === 'step_1') {
+                        // 如果messageId匹配，或者请求的是step_1（默认值），则返回这条记录
+                        matchedRecord = record;
+                        dlog(`匹配成功，返回记录`);
+                        break;
+                      }
+                    }
+                  }
+                  if (matchedRecord) break;
+                } catch (parseError) {
+                  console.warn(`SSE解析失败: ${parseError}`);
+                  // 如果SSE解析失败，回退到简单的字符串搜索
+                  if (record.response.body_raw.includes(messageId)) {
+                    matchedRecord = record;
+                    break;
+                  }
+                }
+              }
+            } catch (parseError) {
+              console.warn(`解析JSON行失败: ${parseError}`);
+              continue;
+            }
+          }
+        }
+        
+        if (!matchedRecord) {
+          throw new Error(`在文件 ${fileId} 中找不到messageId: ${messageId}`);
+        }
+        
+        dlog(`找到匹配的LLM记录`);
+
+        //从traceDir中查找llm_requests目录尝试获取LLM请求数据文件，如果找到，覆盖LLM请求数据
+        const llmRequestsDir = path.join(traceDir, 'llm_requests');
+        const llmRequestFilePath = path.join(llmRequestsDir, `${messageId}.json`);
+        if(fs.existsSync(llmRequestFilePath)) {
+          try {
+            const llmRequestContent = await fs.promises.readFile(llmRequestFilePath, 'utf-8');
+            matchedRecord.request = JSON.parse(llmRequestContent);
+          } catch (error) {
+            throw new Error(`覆盖请求数据失败: ${error}`);
+          }
+        }
+        
+        // 4. 构建返回数据
+        const processedRecord: any = {
+          request: matchedRecord.request || matchedRecord,
+          response: matchedRecord.response || {},
+          logged_at: matchedRecord.logged_at || matchedRecord.timestamp || new Date().toISOString()
+        };
+        
+        // 5. 解析response.body_raw（如果存在）
+        if (matchedRecord.response && matchedRecord.response.body_raw) {
+          try {
+            let res =  matchedRecord.response;
+            // 解析SSE格式数据
+            const sseEvents = this.parseSSEData(res.body_raw);
+            res.body_data = this.transformSSEEvents(sseEvents);
+            dlog(`解析到 ${sseEvents.length} 个SSE事件`);
+            
+            // 提取content_block_delta的文本内容
+            const textParts: string[] = [];
+            for (const event of sseEvents) {
+              if (event.type === 'content_block_delta' && event.delta && event.delta.type === 'text_delta' && event.delta.text) {
+                textParts.push(event.delta.text);
+              }
+            }
+            
+            dlog(`提取到 ${textParts.length} 个文本片段`);
+            
+            if (textParts.length > 0) {
+              res.body_text = textParts.join('');
+              dlog(`合并后的文本长度: ${res.body_text.length}`);
+            }
+          } catch (parseError) {
+            console.warn(`解析body_raw失败: ${parseError}`);
+          }
+        }
+        
+        const response: any = {
+          success: true,
+          data: processedRecord
+        };
+        
+        res.json(response);
+      } catch (error) {
+        console.error('获取LLM日志失败:', error);
+        const response: any = {
+          success: false,
+          error: error instanceof Error ? error.message : '未知错误'
+        };
+        res.status(500).json(response);
+      }
+    });
+
+    // 对话数据API - 通用路由，必须放在具体路由之后
+    this.app.get('/api/conversations/:fileId(*)', async (req, res) => {
       try {
         const fileId = req.params.fileId as string;
         
@@ -518,158 +670,6 @@ export class WebServer {
           errorMessage: error instanceof Error ? error.message : '未知错误',
           errorStack: error instanceof Error ? error.stack : undefined
         });
-        const response: any = {
-          success: false,
-          error: error instanceof Error ? error.message : '未知错误'
-        };
-        res.status(500).json(response);
-      }
-    });
-
-    // 获取LLM日志
-    this.app.get('/api/conversations/:fileId(*)/llm-logs/:messageId', async (req, res) => {
-      try {
-        const { fileId, messageId } = req.params;
-        dlog(`查找LLM日志: fileId=${fileId}, messageId=${messageId}`);
-        
-        // 1. 直接在日志目录中查找对应的文件
-        const traceDir = path.join(this.config.projectDir, '.claude-trace', 'tracelog');
-        let targetFilePath: string | null = null;
-        let targetFileId = fileId;
-
-        //如果是agent-*文件，则从this.logDir目录读取此文件，找到第一个条记录的sessionId属性
-        if(fileId.startsWith('agent-')) {
-          const logFilePath = path.join(this.logDir, `${fileId}.jsonl`);
-          if (fs.existsSync(logFilePath)) {
-            const fileContent = await fs.readFileSync(logFilePath, 'utf-8');
-            const lines = fileContent.split('\n').filter(line => line.trim() !== '');
-            if (lines.length > 0) {
-              const firstRecord = JSON.parse(lines[0]);
-              if (firstRecord.sessionId) {
-                targetFileId = firstRecord.sessionId;
-                dlog(`根据agent-*文件找到sessionId: ${targetFileId}`);
-              }
-            }
-          }
-        }
-
-        // 查找sessionId.jsonl文件
-        const jsonlFilePath = path.join(traceDir, `${targetFileId}.jsonl`);
-        if (fs.existsSync(jsonlFilePath)) {
-          targetFilePath = jsonlFilePath;
-          dlog(`找到LLM日志文件: ${targetFilePath}`);
-        }
-        else {
-          throw new Error(`找不到LLM日志文件: ${targetFileId}`);
-        }
-
-        // 2. 读取并解析文件内容
-        const fileContent = await fs.promises.readFile(targetFilePath, 'utf-8');
-        
-        let matchedRecord: any = null;
-        
-        if (targetFilePath.endsWith('.jsonl')) {
-          // 处理.jsonl文件：逐行解析JSON
-          const lines = fileContent.split('\n').filter(line => line.trim() !== '');
-          
-          for (const line of lines) {
-            try {
-              const record = JSON.parse(line);
-              
-              // 3. 在response.body_raw中搜索messageId
-              if (record.response && record.response.body_raw) {
-                // 解析SSE数据，查找message_start事件中的messageId
-                try {
-                  const sseEvents = this.parseSSEData(record.response.body_raw);
-                  for (const event of sseEvents) {
-                    if (event.type === 'message_start' && event.message && event.message.id) {
-                      dlog(`找到message_start事件，messageId: ${event.message.id}, 查找的messageId: ${messageId}`);
-                      if (event.message.id === messageId || messageId === 'step_1') {
-                        // 如果messageId匹配，或者请求的是step_1（默认值），则返回这条记录
-                        matchedRecord = record;
-                        dlog(`匹配成功，返回记录`);
-                        break;
-                      }
-                    }
-                  }
-                  if (matchedRecord) break;
-                } catch (parseError) {
-                  console.warn(`SSE解析失败: ${parseError}`);
-                  // 如果SSE解析失败，回退到简单的字符串搜索
-                  if (record.response.body_raw.includes(messageId)) {
-                    matchedRecord = record;
-                    break;
-                  }
-                }
-              }
-            } catch (parseError) {
-              console.warn(`解析JSON行失败: ${parseError}`);
-              continue;
-            }
-          }
-        }
-        
-        if (!matchedRecord) {
-          throw new Error(`在文件 ${fileId} 中找不到messageId: ${messageId}`);
-        }
-        
-        dlog(`找到匹配的LLM记录`);
-
-        //从traceDir中查找llm_requests目录尝试获取LLM请求数据文件，如果找到，覆盖LLM请求数据
-        const llmRequestsDir = path.join(traceDir, 'llm_requests');
-        const llmRequestFilePath = path.join(llmRequestsDir, `${messageId}.json`);
-        if(fs.existsSync(llmRequestFilePath)) {
-          try {
-            const llmRequestContent = await fs.promises.readFile(llmRequestFilePath, 'utf-8');
-            matchedRecord.request = JSON.parse(llmRequestContent);
-          } catch (error) {
-            throw new Error(`覆盖请求数据失败: ${error}`);
-          }
-        }
-        
-        // 4. 构建返回数据
-        const processedRecord: any = {
-          request: matchedRecord.request || matchedRecord,
-          response: matchedRecord.response || {},
-          logged_at: matchedRecord.logged_at || matchedRecord.timestamp || new Date().toISOString()
-        };
-        
-        // 5. 解析response.body_raw（如果存在）
-        if (matchedRecord.response && matchedRecord.response.body_raw) {
-          try {
-            let res =  matchedRecord.response;
-            // 解析SSE格式数据
-            const sseEvents = this.parseSSEData(res.body_raw);
-            res.body_data = this.transformSSEEvents(sseEvents);
-            dlog(`解析到 ${sseEvents.length} 个SSE事件`);
-            
-            // 提取content_block_delta的文本内容
-            const textParts: string[] = [];
-            for (const event of sseEvents) {
-              if (event.type === 'content_block_delta' && event.delta && event.delta.type === 'text_delta' && event.delta.text) {
-                textParts.push(event.delta.text);
-              }
-            }
-            
-            dlog(`提取到 ${textParts.length} 个文本片段`);
-            
-            if (textParts.length > 0) {
-              res.body_text = textParts.join('');
-              dlog(`合并后的文本长度: ${res.body_text.length}`);
-            }
-          } catch (parseError) {
-            console.warn(`解析body_raw失败: ${parseError}`);
-          }
-        }
-        
-        const response: any = {
-          success: true,
-          data: processedRecord
-        };
-        
-        res.json(response);
-      } catch (error) {
-        console.error('获取LLM日志失败:', error);
         const response: any = {
           success: false,
           error: error instanceof Error ? error.message : '未知错误'
