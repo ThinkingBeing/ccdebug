@@ -678,9 +678,12 @@ const calculateDuration = (step: ConversationStep & { toolResult?: ConversationS
 const highlightSearchKeyword = (text: string): string => {
   if (!searchKeyword.value || !text) return text
   
+  // 确保text是字符串类型
+  const textStr = typeof text === 'string' ? text : JSON.stringify(text, null, 2)
+  
   const keyword = searchKeyword.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const regex = new RegExp(`(${keyword})`, 'gi')
-  return text.replace(regex, '<mark class="search-highlight-keyword">$1</mark>')
+  return textStr.replace(regex, '<mark class="search-highlight-keyword">$1</mark>')
 }
 
 // JSON语法高亮
@@ -1104,23 +1107,22 @@ const getToolResultContent = (step: ConversationStep, isExpanded: boolean = fals
   // 如果这是一个tool_call或agent_child步骤且有关联的toolResult，使用toolResult的内容
   if ((step.type === 'tool_call' || step.type === 'agent_child') && step.toolResult) {
     dlog('🎯 使用关联的toolResult内容')
+    let result_content = null;
     
-    // 直接获取toolUseResult并序列化为JSON字符串
-    const toolResultRawLogEntry = step.toolResult.rawLogEntry
-    if (toolResultRawLogEntry?.toolUseResult) {
-      try {
-        const content = JSON.stringify(toolResultRawLogEntry.toolUseResult, null, 2)
-        if (!isExpanded && content.length > 500) {
-          dlog('📏 toolUseResult JSON truncated (collapsed):', content.length)
-          // 直接截断JSON字符串
-          return content.substring(0, 500) + '...'
-        }
-        dlog('📄 toolUseResult JSON full content (expanded):', content.length)
-        return content
-      } catch (error) {
-        dwarn('toolUseResult JSON序列化失败:', error)
-        return ''
+    if(step.toolResult) {
+      if(step.toolResult.content) {
+        //优先从step.toolResult.content获取
+        result_content = step.toolResult.content;
+      } else if(step.toolResult.rawLogEntry && step.toolResult.rawLogEntry.toolUseResult) {
+        //如果获取不到，从step.toolResult.rawLogEntry.toolUseResult获取
+        result_content = step.toolResult.rawLogEntry.toolUseResult;
       }
+    }
+    try {
+      return result_content;
+    } catch (error) {
+      dwarn('toolUseResult JSON序列化失败:', error)
+      return ''
     }
     
     // 如果取不到toolUseResult则返回空
@@ -1279,7 +1281,10 @@ defineExpose({
 
 .timeline-main {
   position: relative;
-  width: 100%;
+  padding: 20px 0;
+  /* 确保时间线主容器有合适的宽度限制 */
+  max-width: 100%;
+  overflow-x: hidden; /* 防止水平滚动 */
 }
 
 .timeline-item {
@@ -1368,13 +1373,20 @@ defineExpose({
 }
 
 .timeline-content-card {
-  flex: 1;
-  background: #fff;
+  background: white;
   border: 1px solid #e8e8e8;
   border-radius: 8px;
-  padding: 12px;
   margin-left: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
+  position: relative;
+  z-index: 2;
+  /* 确保卡片不会超出容器宽度 */
+  max-width: calc(100vw - 200px); /* 为左侧时间和连接线预留空间 */
+  min-width: 400px; /* 设置统一的最小宽度，确保节点宽度一致 */
+  width: calc(100vw - 200px); /* 设置固定宽度，让所有节点保持一致 */
+  overflow: hidden; /* 防止内容溢出 */
 }
 
 .timeline-content-card:hover {
@@ -1418,7 +1430,7 @@ defineExpose({
 .card-header .summary-text {
   display: block;
   flex: 1;
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - 120px); /* 增加右侧空间，为耗时标签和展开按钮留出空间 */
   min-width: 0;
   transition: color 0.2s ease;
   font-size: 13px;
@@ -2205,7 +2217,7 @@ defineExpose({
   min-height: 100px;
   background: linear-gradient(to bottom, #ff4d4f, #ff7875);
   border-radius: 2px;
-  z-index: 1;
+  z-index: 9; /* 提高z-index层级，确保连接线显示在节点卡片之上 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2226,7 +2238,7 @@ defineExpose({
   font-weight: 600;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(255, 77, 79, 0.4);
-  z-index: 3;
+  z-index: 10; /* 提高z-index层级，确保显示在节点卡片之上 */
   border: 2px solid #fff;
 }
 
@@ -2282,6 +2294,10 @@ defineExpose({
   .timeline-content-card {
     margin-left: 12px;
     padding: 12px;
+    /* 移动端设置固定宽度，确保节点一致性 */
+    width: calc(100vw - 120px);
+    min-width: 280px; /* 移动端最小宽度 */
+    max-width: calc(100vw - 120px);
   }
   
   .timeline-elapsed {
@@ -2291,6 +2307,12 @@ defineExpose({
   .duration-label {
     font-size: 10px;
     padding: 3px 8px;
+  }
+  
+  /* 移动端摘要文本进一步缩小最大宽度 */
+  .card-header .summary-text {
+    max-width: calc(100% - 80px);
+    font-size: 12px;
   }
 }
 </style>

@@ -8,6 +8,8 @@ ccdemo/results/**/*.md
 web/server/server
 release
 ccdemo
+.DS_Store
+**/.DS_Store
 
 # TypeScript 编译生成的文件
 web/server/*.js

@@ -163,12 +163,8 @@ export class ConversationParser {
       try {
         const logEntry = JSON.parse(line);
         
-        // 根据日志条目类型处理
-        if (this.isConversationStart(logEntry)) {
-          // 如果有当前对话，先保存
-          if (currentConversation) {
-            conversations.push(currentConversation);
-          }
+        // 如果是用户消息，而且currentConversation为空，说明是第一个用户消息，需要创建currentConversation
+        if (this.isUserMessage(logEntry) && currentConversation === null) {
           
           // 创建新对话
           currentConversation = {
@@ -202,22 +198,20 @@ export class ConversationParser {
     return conversations;
   }
   
-  private isConversationStart(logEntry: any): boolean {
-    // 根据实际日志格式判断对话开始
-    // 1. 如果有明确的conversation_start类型，使用它
-    if (logEntry.type === 'conversation_start') {
+  private isUserMessage(logEntry: any): boolean {
+
+    
+    // 2. 兼容新格式：type === 'user' 
+    if (logEntry.type === 'user') {
       return true;
     }
     
-    // 2. 如果是用户消息且没有parentUuid，认为是新对话的开始
-    if (logEntry.type === 'user' && !logEntry.parentUuid) {
+    // 兼容旧格式，判断messsage.role=user
+    if (logEntry.message?.role === 'user') {
       return true;
     }
     
-    // 3. 如果是第一条消息（没有父级UUID），也认为是对话开始
-    if (!logEntry.parentUuid && logEntry.message) {
-      return true;
-    }
+
     
     return false;
   }
@@ -412,6 +406,12 @@ export class ConversationParser {
 
   private extractUserMessageContent(logEntry: any): string {
     dlog('extractUserMessageContent - 处理用户消息');
+    
+    // 兼容新格式：type === 'user' 且 message.content 是字符串
+    if (logEntry.type === 'user' && logEntry.message?.content && typeof logEntry.message.content === 'string') {
+      dlog('extractUserMessageContent - 提取用户消息内容(新格式):', logEntry.message.content);
+      return logEntry.message.content;
+    }
     
     // 优先检查 message.content（新格式）
     if (logEntry.message?.content && typeof logEntry.message.content === 'string') {
