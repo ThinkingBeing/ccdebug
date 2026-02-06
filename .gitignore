@@ -1,13 +1,9 @@
 node_modules
 .claude
-.claude-trace
 .vscode
 dist
-ccdemo/docs/**/*.md
-ccdemo/results/**/*.md
 web/server/server
 release
-ccdemo
 .DS_Store
 **/.DS_Store
 
