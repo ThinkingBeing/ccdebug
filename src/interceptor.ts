@@ -3,7 +3,6 @@ import path from "path";
 import { spawn } from "child_process";
 import { RawPair } from "./types";
 import { HTMLGenerator } from "./html-generator";
-import { LogFileManager } from "./log-file-manager";
 import { error } from "console";
 
 export interface InterceptorConfig {
@@ -512,16 +511,6 @@ export class ClaudeTrafficLogger {
 		this.pendingRequests.clear();
 		console.log(`Cleanup complete. Logged ${this.pairs.length} pairs`);
 
-		//获取cc会话的sessionid
-		let sessionId = this.getSessionIdFromLog();
-		if(sessionId != '') {
-			//将当前会话对应的cc日志文件，拷贝到.claude-trace/cclog目录
-			this.copyCClogFile(sessionId);
-
-			// Rename log file based on sessionid from first record
-			this.renameTraceLogFileBySessionId(sessionId);
-		}
-
 		// Open browser if requested
 		// const shouldOpenBrowser = process.env.CLAUDE_TRACE_OPEN_BROWSER === "true";
 		// if (shouldOpenBrowser && fs.existsSync(this.htmlFile)) {
@@ -532,160 +521,6 @@ export class ClaudeTrafficLogger {
 		// 		console.log(`Failed to open browser: ${error}`);
 		// 	}
 		// }
-	}
-
-	private getSessionIdFromLog(): string {
-		// 检查是否启用了跟踪
-		if (!this.traceLogFile) {
-			return '';
-		}
-		
-		// Check if log file exists
-		if (!fs.existsSync(this.traceLogFile)) {
-			console.log("获取sessionId错误：Log file does not exist");
-			return '';
-		}
-
-		// Read the first line of the JSONL file
-		const fileContent = fs.readFileSync(this.traceLogFile, 'utf-8');
-		const lines = fileContent.split('\n').filter(line => line.trim());
-		
-		if (lines.length === 0) {
-			console.log("获取sessionId错误：Log file is empty");
-			return '';
-		}
-
-		// 循环读取日志，直到找到user_id为止
-		let userId = null;
-		
-		for (const line of lines) {
-			const record = JSON.parse(line);
-			userId = record?.request?.body?.metadata?.user_id;
-			if (userId) {
-				break;
-			}
-		}
-		
-		if (!userId) {
-			console.log("获取sessionId错误：No user_id found in any record");
-			return '';
-		}
-
-		// Extract sessionid from user_id (format: xxxx_session_{sessionid})
-		const sessionMatch = userId.match(/_session_([^_]+)$/);
-		if (!sessionMatch || !sessionMatch[1]) {
-			console.log(`获取sessionId错误：No sessionid found in user_id: ${userId}`);
-			return '';
-		}
-
-		return sessionMatch[1];
-	}
-
-	private copyCClogFile(sessionId: string): void {
-		// 检查是否启用了跟踪
-		if (!this.ccLogDir) {
-			return;
-		}
-		
-		//将当前会话对应的cc日志文件，拷贝到.claude-trace/cclog目录
-		try {
-			// 创建LogFileManager实例
-			const logFileManager = new LogFileManager();
-
-			// 获取当前工作目录作为项目路径
-			const currentProjectPath = process.cwd();
-
-			// 通过LogFileManager解析源日志目录
-			const sourceLogDir = logFileManager.resolveLogDirectory(currentProjectPath);
-
-
-			// 构建源文件路径（假设源文件名为sessionId.jsonl）
-			const sourceFile = path.join(sourceLogDir, `${sessionId}.jsonl`);
-
-			// 构建目标文件路径
-			this.ccLogFile = path.join(this.ccLogDir, `${sessionId}.jsonl`);
-
-			// 检查源文件是否存在
-			if (!fs.existsSync(sourceFile)) {
-				console.log(`源CC日志文件不存在: ${sourceFile}`);
-				return;
-			}
-
-			// 拷贝文件
-			fs.copyFileSync(sourceFile, this.ccLogFile);
-			console.log(`CC日志文件已从 ${sourceFile} 拷贝到 ${this.ccLogFile}`);
-
-			// 读取sourceLogDir目录下所有agent_*.jsonl文件，读取第一条记录的sessionId，找到与sessionId变量值相同的文件，拷贝到ccLogDir目录
-			const files = fs.readdirSync(sourceLogDir).filter(file => file.startsWith('agent-') && file.endsWith('.jsonl'));
-
-			for (const file of files) {
-				const filePath = path.join(sourceLogDir, file);
-				const content = fs.readFileSync(filePath, 'utf-8');
-				const lines = content.split('\n').filter(line => line.trim());
-
-				if (lines.length > 0) {
-					try {
-						const firstRecord = JSON.parse(lines[0]);
-						const recordSessionId = firstRecord?.sessionId;
-						if (recordSessionId === sessionId) {
-							// 构建目标文件路径
-							const ccAgentLogFile = path.join(this.ccLogDir, file);
-							// 拷贝文件
-							fs.copyFileSync(filePath, ccAgentLogFile);
-							console.log(`SubAgent的CC日志文件已从 ${filePath} 拷贝到 ${ccAgentLogFile}`);
-						}
-					} catch (parseError) {
-						// 静默处理解析错误，继续下一个文件
-						continue;
-					}
-				}
-			}
-
-			// 兼容subagents日志的另一种存放方式：sourceLogDir/{sessionId}/subagents/目录
-			const subagentsDir = path.join(sourceLogDir, sessionId, 'subagents');
-			if (fs.existsSync(subagentsDir)) {
-				try {
-					const subagentFiles = fs.readdirSync(subagentsDir).filter(file => file.startsWith('agent-') && file.endsWith('.jsonl'));
-					
-					for (const file of subagentFiles) {
-						const sourceFilePath = path.join(subagentsDir, file);
-						const targetFilePath = path.join(this.ccLogDir, file);
-						
-						// 直接拷贝文件，因为已经在正确的sessionId目录下
-						fs.copyFileSync(sourceFilePath, targetFilePath);
-						console.log(`SubAgent的CC日志文件已从 ${sourceFilePath} 拷贝到 ${targetFilePath}`);
-					}
-				} catch (error) {
-					console.log(`处理subagents目录时出错: ${error}`);
-				}
-			}
-
-		} catch (error) {
-			console.log(`拷贝CC日志文件时出错: ${error}`);
-		}
-	}
-
-	private renameTraceLogFileBySessionId(sessionId: string): void {
-		// 检查是否启用了跟踪
-		if (!this.traceLogFile) {
-			return;
-		}
-		
-		try {
-			
-			const logDir = path.dirname(this.traceLogFile);
-			const newLogFile = path.join(logDir, `${sessionId}.jsonl`);
-
-			// Rename the file
-			fs.renameSync(this.traceLogFile, newLogFile);
-			console.log(`Log file renamed from ${path.basename(this.traceLogFile)} to ${sessionId}.jsonl`);
-			
-			// Update the logFile path for future reference
-			this.traceLogFile = newLogFile;
-
-		} catch (error) {
-			console.log(`Error renaming log file: ${error}`);
-		}
 	}
 
 	public getStats() {

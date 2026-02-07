@@ -19,7 +19,7 @@ npx --node-options="--inspect-brk=9321" tsx src/cli.ts -l --project /Users/ligf/
 # 启动cc（快速测试）
 npx --node-options="--inspect-brk=9321" tsx src/cli.ts  --run-with -p "1+2=?" --output-format stream-json --verbose
 
-npx tsx src/cli.ts  --run-with -p "1+2=?" --output-format stream-json --verbose
+npx tsx ../src/cli.ts --claude-path "/Users/ligf/.local/bin/claude"  --run-with -p "启动SubAgent计算圆周率，精确到第十位" --output-format stream-json --verbose
 
 npx tsx src/cli.ts --claude-path "/opt/homebrew/bin/claude"  --run-with -p "1+2=?" --output-format stream-json --verbose
 

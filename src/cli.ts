@@ -3,7 +3,9 @@
 import { spawn, ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
+import * as crypto from "crypto";
 import { HTMLGenerator } from "./html-generator";
+import { LogFileManager } from "./log-file-manager";
 import * as os from "os";
 import * as http from "http";
 import * as https from "https";
@@ -318,19 +320,149 @@ function getLoaderPath(): string {
 	return loaderPath;
 }
 
-// Scenario 1: No args -> launch node with interceptor and absolute path to claude
+
+
+/**
+ * 拷贝 Claude Code 日志文件到 cclog 目录
+ * @param sessionId 会话ID
+ * @param ccLogDir cclog 目录路径
+ */
+function copyCClogFile(sessionId: string, ccLogDir: string | null): void {
+	// 检查是否启用了跟踪
+	if (!ccLogDir) {
+		return;
+	}
+	
+	// 将当前会话对应的 cc 日志文件，拷贝到 .claude-trace/cclog 目录
+	try {
+		// 创建 LogFileManager 实例
+		const logFileManager = new LogFileManager();
+
+		// 获取当前工作目录作为项目路径
+		const currentProjectPath = process.cwd();
+
+		// 通过 LogFileManager 解析源日志目录
+		const sourceLogDir = logFileManager.resolveLogDirectory(currentProjectPath);
+
+		// 构建源文件路径（假设源文件名为 sessionId.jsonl）
+		const sourceFile = path.join(sourceLogDir, `${sessionId}.jsonl`);
+
+		// 构建目标文件路径
+		const ccLogFile = path.join(ccLogDir, `${sessionId}.jsonl`);
+
+		// 检查源文件是否存在
+		if (!fs.existsSync(sourceFile)) {
+			console.log(`源CC日志文件不存在: ${sourceFile}`);
+			return;
+		}
+
+		// 拷贝文件
+		fs.copyFileSync(sourceFile, ccLogFile);
+		console.log(`CC日志文件已从 ${sourceFile} 拷贝到 ${ccLogFile}`);
+
+		// 读取 sourceLogDir 目录下所有 agent_*.jsonl 文件，读取第一条记录的 sessionId，找到与 sessionId 变量值相同的文件，拷贝到 ccLogDir 目录
+		const files = fs.readdirSync(sourceLogDir).filter(file => file.startsWith('agent-') && file.endsWith('.jsonl'));
+
+		for (const file of files) {
+			const filePath = path.join(sourceLogDir, file);
+			const content = fs.readFileSync(filePath, 'utf-8');
+			const lines = content.split('\n').filter(line => line.trim());
+
+			if (lines.length > 0) {
+				try {
+					const firstRecord = JSON.parse(lines[0]);
+					const recordSessionId = firstRecord?.sessionId;
+					if (recordSessionId === sessionId) {
+						// 构建目标文件路径
+						const ccAgentLogFile = path.join(ccLogDir, file);
+						// 拷贝文件
+						fs.copyFileSync(filePath, ccAgentLogFile);
+						console.log(`SubAgent的CC日志文件已从 ${filePath} 拷贝到 ${ccAgentLogFile}`);
+					}
+				} catch (parseError) {
+					// 静默处理解析错误，继续下一个文件
+					continue;
+				}
+			}
+		}
+
+		// 兼容 subagents 日志的另一种存放方式：sourceLogDir/{sessionId}/subagents/ 目录
+		const subagentsDir = path.join(sourceLogDir, sessionId, 'subagents');
+		if (fs.existsSync(subagentsDir)) {
+			try {
+				const subagentFiles = fs.readdirSync(subagentsDir).filter(file => file.startsWith('agent-') && file.endsWith('.jsonl'));
+				
+				// 只有当存在需要拷贝的文件时，才创建目标目录
+				if (subagentFiles.length > 0) {
+					// 创建目标目录结构：ccLogDir/{sessionId}/subagents/
+					const targetSubagentsDir = path.join(ccLogDir, sessionId, 'subagents');
+					if (!fs.existsSync(targetSubagentsDir)) {
+						fs.mkdirSync(targetSubagentsDir, { recursive: true });
+					}
+					
+					for (const file of subagentFiles) {
+						const sourceFilePath = path.join(subagentsDir, file);
+						const targetFilePath = path.join(targetSubagentsDir, file);
+						
+						// 直接拷贝文件，因为已经在正确的 sessionId 目录下
+						fs.copyFileSync(sourceFilePath, targetFilePath);
+						console.log(`SubAgent的CC日志文件已从 ${sourceFilePath} 拷贝到 ${targetFilePath}`);
+					}
+				}
+			} catch (error) {
+				console.log(`处理subagents目录时出错: ${error}`);
+			}
+		}
+
+	} catch (error) {
+		console.log(`拷贝CC日志文件时出错: ${error}`);
+	}
+}
+
+/**
+ * 根据 sessionId 重命名跟踪日志文件
+ * @param sessionId 会话ID
+ * @param traceLogFile 跟踪日志文件路径
+ * @returns 新的日志文件路径
+ */
+function renameTraceLogFileBySessionId(sessionId: string, traceLogFile: string | null): string | null {
+	// 检查是否启用了跟踪
+	if (!traceLogFile) {
+		return null;
+	}
+	
+	try {
+		const logDir = path.dirname(traceLogFile);
+		const newLogFile = path.join(logDir, `${sessionId}.jsonl`);
+
+		// 重命名文件
+		fs.renameSync(traceLogFile, newLogFile);
+		console.log(`Log file renamed from ${path.basename(traceLogFile)} to ${sessionId}.jsonl`);
+		
+		return newLogFile;
+	} catch (error) {
+		console.log(`Error renaming log file: ${error}`);
+		return traceLogFile;
+	}
+}
+
+// 启动claude code
 async function runClaudeWithInterception(
 	claudeArgs: string[] = [],
 	includeAllRequests: boolean = false,
 	openInBrowser: boolean = false,
 	customClaudePath?: string,
 	logBaseName?: string,
-	enableTrace: boolean = false,
+	enableTrace: boolean = true,
 ): Promise<void> {
 	log("启动 Claude", "blue");
 	if (claudeArgs.length > 0) {
 		log(`Claude 参数: ${claudeArgs.join(" ")}`, "blue");
 	}
+
+	// 生成 UUID 格式的 sessionId
+	const sessionId = crypto.randomUUID();
+	log(`生成 SessionId: ${sessionId}`, "blue");
 
 	const claudePath = getClaudeAbsolutePath(customClaudePath);
 	log(`使用 Claude 二进制文件: ${claudePath}`, "blue");
@@ -345,7 +477,9 @@ async function runClaudeWithInterception(
 			log("使用 Node.js 启动 Claude（未启用跟踪）", "blue");
 		}
 		const loaderPath = getLoaderPath();
-		const spawnArgs = ["--require", loaderPath, claudePath, ...claudeArgs];
+		// 添加 --session-id 参数到 Claude 启动参数中
+		const claudeArgsWithSession = ["--session-id", sessionId, ...claudeArgs];
+		const spawnArgs = ["--require", loaderPath, claudePath, ...claudeArgsWithSession];
 		child = spawn("node", spawnArgs, {
 			env: {
 				...process.env,
@@ -370,8 +504,11 @@ async function runClaudeWithInterception(
 		// 给用户一点时间阅读提示信息
 		await new Promise(resolve => setTimeout(resolve, 500));
 
+		// 添加 --session-id 参数到 Claude 启动参数中
+		const claudeArgsWithSession = ["--session-id", sessionId, ...claudeArgs];
+		
 		// 直接启动 Claude 二进制文件，不使用代理
-		child = spawn(claudePath, claudeArgs, {
+		child = spawn(claudePath, claudeArgsWithSession, {
 			env: {
 				...process.env,
 			},
@@ -428,136 +565,34 @@ async function runClaudeWithInterception(
 		log(`意外错误: ${err.message}`, "red");
 		process.exit(1);
 	}
-}
 
-// Scenario 2: --extract-token -> launch node with token interceptor and absolute path to claude
-async function extractToken(customClaudePath?: string): Promise<void> {
-	const claudePath = getClaudeAbsolutePath(customClaudePath);
-
-	// Log to stderr so it doesn't interfere with token output
-	console.error(`使用 Claude 二进制文件: ${claudePath}`);
-
-	// Create .claude-trace directory if it doesn't exist
-    const ccdebugDir = path.join(process.cwd(), ".claude-trace");
-	if (!fs.existsSync(ccdebugDir)) {
-        fs.mkdirSync(ccdebugDir, { recursive: true });
-    }
-
-	// Token file location
-	const tokenFile = path.join(ccdebugDir, "token.txt");
-
-	// Use the token extractor directly without copying
-	const tokenExtractorPath = path.join(__dirname, "token-extractor.js");
-	if (!fs.existsSync(tokenExtractorPath)) {
-		log(`未找到令牌提取器: ${tokenExtractorPath}`, "red");
-		process.exit(1);
-	}
-
-	const cleanup = () => {
-		try {
-			if (fs.existsSync(tokenFile)) fs.unlinkSync(tokenFile);
-		} catch (e) {
-			// Ignore cleanup errors
-		}
-	};
-
-	// Launch node with token interceptor and absolute path to claude
-	const { ANTHROPIC_API_KEY, ...envWithoutApiKey } = process.env;
-	const child: ChildProcess = spawn("node", ["--require", tokenExtractorPath, claudePath, "-p", "hello"], {
-		env: {
-			...envWithoutApiKey,
-			NODE_TLS_REJECT_UNAUTHORIZED: "0",
-			CLAUDE_TRACE_TOKEN_FILE: tokenFile,
-		},
-		stdio: "inherit", // Suppress all output from Claude
-		cwd: process.cwd(),
-	});
-
-	// Set a timeout to avoid hanging
-	const timeout = setTimeout(() => {
-		child.kill();
-		cleanup();
-		console.error("超时: 30 秒内未找到令牌");
-		process.exit(1);
-	}, 30000);
-
-	// Handle child process events
-	child.on("error", (error: Error) => {
-		clearTimeout(timeout);
-		cleanup();
-		console.error(`启动 Claude 时出错: ${error.message}`);
-		process.exit(1);
-	});
-
-	child.on("exit", () => {
-		clearTimeout(timeout);
-
-		try {
-			if (fs.existsSync(tokenFile)) {
-				const token = fs.readFileSync(tokenFile, "utf-8").trim();
-				cleanup();
-				if (token) {
-					// Only output the token, nothing else
-					console.log(token);
-					process.exit(0);
-				}
-			}
-		} catch (e) {
-			// File doesn't exist or read error
-		}
-
-		cleanup();
-		console.error("未找到授权令牌");
-		process.exit(1);
-	});
-
-	// Check for token file periodically
-	const checkToken = setInterval(() => {
-		try {
-			if (fs.existsSync(tokenFile)) {
-				const token = fs.readFileSync(tokenFile, "utf-8").trim();
-				if (token) {
-					clearTimeout(timeout);
-					clearInterval(checkToken);
-					child.kill();
-					cleanup();
-
-					// Only output the token, nothing else
-					console.log(token);
-					process.exit(0);
-				}
-			}
-		} catch (e) {
-			// Ignore read errors, keep trying
-		}
-	}, 500);
-}
-
-// Scenario 3: --generate-html input.jsonl output.html
-async function generateHTMLFromCLI(
-	inputFile: string,
-	outputFile?: string,
-	includeAllRequests: boolean = false,
-	openInBrowser: boolean = false,
-): Promise<void> {
+	// Claude 执行完成后，处理 CC 日志文件（不管是否启用了跟踪）
 	try {
-		const htmlGenerator = new HTMLGenerator();
-		const finalOutputFile = await htmlGenerator.generateHTMLFromJSONL(inputFile, outputFile, includeAllRequests);
+		console.log("\nClaude 执行完成，处理 CC 日志文件...");
+		// 构建日志文件路径
+		const traceHomeDir = ".claude-trace";
+		const traceLogDir = path.join(traceHomeDir, 'tracelog');
+		const ccLogDir = path.join(traceHomeDir, 'cclog');
+		
+		// 生成日志文件名
+		const fileBaseName = logBaseName || `log-${new Date().toISOString().replace(/[:.]/g, "-").replace("T", "-").slice(0, -5)}`;
+		const traceLogFile = enableTrace ? path.join(traceLogDir, `${fileBaseName}.jsonl`) : null;
+		
+		// 直接使用之前生成的 sessionId
+		console.log(`使用 SessionId: ${sessionId} 处理日志文件`);
+		
+		// 将当前会话对应的 cc 日志文件，拷贝到 .claude-trace/cclog 目录
+		copyCClogFile(sessionId, ccLogDir);
 
-		if (openInBrowser) {
-			spawn("open", [finalOutputFile], { detached: true, stdio: "ignore" }).unref();
-			log(`正在浏览器中打开 ${finalOutputFile}`, "green");
-		}
-
-		process.exit(0);
+		// 根据 sessionId 重命名跟踪日志文件
+		renameTraceLogFileBySessionId(sessionId, traceLogFile);
 	} catch (error) {
-		const err = error as Error;
-		log(`错误: ${err.message}`, "red");
-		process.exit(1);
+		// 静默处理错误，不影响主流程
+		console.log(`处理CC日志时出错: ${error}`);
 	}
 }
 
-// Scenario 5: --serve, --log, -l
+// 启动web工具
 async function startWebServer(port?: number, projectDir?: string): Promise<void> {
 	try {
 		// 使用 require 导入 web server 模块
@@ -595,20 +630,6 @@ async function startWebServer(port?: number, projectDir?: string): Promise<void>
 	}
 }
 
-// Scenario 4: --index
-async function generateIndex(): Promise<void> {
-	try {
-		const { IndexGenerator } = await import("./index-generator");
-		const indexGenerator = new IndexGenerator();
-		await indexGenerator.generateIndex();
-		process.exit(0);
-	} catch (error) {
-		const err = error as Error;
-		log(`错误: ${err.message}`, "red");
-		process.exit(1);
-	}
-}
-
 // Main entry point
 async function main(): Promise<void> {
 	const args = process.argv.slice(2);
@@ -639,7 +660,7 @@ async function main(): Promise<void> {
 	}
 
 	// Check for trace flag
-	const enableTrace = claudeTraceArgs.includes("--trace");
+	const enableTrace = !claudeTraceArgs.includes("--notrace");
 
 	// Check for include all requests flag
 	const includeAllRequests = claudeTraceArgs.includes("--include-all-requests");
@@ -677,43 +698,6 @@ async function main(): Promise<void> {
 	const projectIndex = claudeTraceArgs.indexOf("--project");
 	if (projectIndex !== -1 && claudeTraceArgs[projectIndex + 1]) {
 		serveProjectDir = claudeTraceArgs[projectIndex + 1];
-	}
-
-	// Scenario 2: --extract-token
-	if (claudeTraceArgs.includes("--extract-token")) {
-		await extractToken(customClaudePath);
-		return;
-	}
-
-	// Scenario 3: --generate-html input.jsonl output.html
-	if (claudeTraceArgs.includes("--generate-html")) {
-		const flagIndex = claudeTraceArgs.indexOf("--generate-html");
-		const inputFile = claudeTraceArgs[flagIndex + 1];
-
-		// Find is next argument that's not a flag as the output file
-		let outputFile: string | undefined;
-		for (let i = flagIndex + 2; i < claudeTraceArgs.length; i++) {
-			const arg = claudeTraceArgs[i];
-			if (!arg.startsWith("--")) {
-				outputFile = arg;
-				break;
-			}
-		}
-
-		if (!inputFile) {
-			log(`--generate-html 缺少输入文件`, "red");
-			log(`用法: ccdebug --generate-html input.jsonl [output.html]`, "yellow");
-			process.exit(1);
-		}
-
-		await generateHTMLFromCLI(inputFile, outputFile, includeAllRequests, openInBrowser);
-		return;
-	}
-
-	// Scenario 4: --index
-	if (claudeTraceArgs.includes("--index")) {
-		await generateIndex();
-		return;
 	}
 
 	// Scenario 5: --serve, --log, -l
